@@ -101,6 +101,12 @@ export function hasPermission(user: User | null, permission: string): boolean {
       "manage_boards",
       "view_customer_goods",
       "manage_customer_goods"
+    ],
+    sales_warehouse: [
+      "view_boards",
+      "manage_boards",
+      "view_customer_goods",
+      "manage_customer_goods"
     ]
   };
 
