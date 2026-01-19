@@ -4,6 +4,50 @@ import { getFromStorage, saveToStorage, generateId, STORAGE_KEYS } from "./stora
 // Current user session storage
 const CURRENT_USER_KEY = "josm_current_user";
 
+// Default users for initialization and demo
+export const mockUsers: User[] = [
+  {
+    id: "1",
+    name: "Admin User",
+    email: "admin@josm.com",
+    password: "admin123",
+    role: "admin",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "2",
+    name: "Store Keeper",
+    email: "storekeeper@josm.com",
+    password: "store123",
+    role: "store_keeper",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "3",
+    name: "Supervisor John",
+    email: "supervisor@josm.com",
+    password: "super123",
+    role: "supervisor",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "4",
+    name: "Worker Sam",
+    email: "worker@josm.com",
+    password: "worker123",
+    role: "worker",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "5",
+    name: "Sales Manager",
+    email: "sales@josm.com",
+    password: "sales123",
+    role: "sales_warehouse",
+    createdAt: new Date().toISOString()
+  }
+];
+
 // Initialize default admin user if no users exist
 export function initializeDefaultUsers(): void {
   if (typeof window === "undefined") return;
@@ -11,49 +55,7 @@ export function initializeDefaultUsers(): void {
   const users = getFromStorage<User>(STORAGE_KEYS.USERS);
   
   if (users.length === 0) {
-    const defaultUsers: User[] = [
-      {
-        id: generateId(),
-        name: "Admin User",
-        email: "admin@josm.com",
-        password: "admin123",
-        role: "admin",
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: generateId(),
-        name: "Store Keeper",
-        email: "storekeeper@josm.com",
-        password: "store123",
-        role: "store_keeper",
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: generateId(),
-        name: "Supervisor John",
-        email: "supervisor@josm.com",
-        password: "super123",
-        role: "supervisor",
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: generateId(),
-        name: "Worker Sam",
-        email: "worker@josm.com",
-        password: "worker123",
-        role: "worker",
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: generateId(),
-        name: "Sales Manager",
-        email: "sales@josm.com",
-        password: "sales123",
-        role: "sales_warehouse",
-        createdAt: new Date().toISOString()
-      }
-    ];
-    saveToStorage(STORAGE_KEYS.USERS, defaultUsers);
+    saveToStorage(STORAGE_KEYS.USERS, mockUsers);
   }
 }
 

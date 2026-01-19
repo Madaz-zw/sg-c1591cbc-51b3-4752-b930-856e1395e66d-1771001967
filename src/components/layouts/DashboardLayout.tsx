@@ -17,10 +17,11 @@ import {
   X,
   Home,
   PackagePlus,
-  CircuitBoard
+  CircuitBoard,
+  Moon,
+  Sun
 } from "lucide-react";
 import { useState } from "react";
-import { logout } from "@/lib/mockAuth";
 import { hasPermission } from "@/lib/mockAuth";
 
 interface DashboardLayoutProps {
@@ -28,13 +29,12 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { user, setUser } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
-    setUser(null);
     router.push("/login");
   };
 
