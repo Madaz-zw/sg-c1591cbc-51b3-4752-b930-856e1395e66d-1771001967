@@ -3,29 +3,39 @@ import { useRouter } from "next/router";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { SEO } from "@/components/SEO";
 import {
   Package,
   Wrench,
   ClipboardList,
+  AlertTriangle,
+  ArrowUpRight,
+  TrendingUp,
   Box,
   Users,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Activity
+  PackagePlus,
+  CheckCircle2
 } from "lucide-react";
-import { Material, Tool, JobCard, Board, MaterialRequest } from "@/types";
+import Link from "next/link";
+import { Material, Tool, Job, Board, MaterialRequest } from "@/types";
+import { getFromStorage, STORAGE_KEYS } from "@/lib/storage";
+import { hasPermission } from "@/lib/mockAuth";
 
 export default function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [jobs, setJobs] = useState<JobCard[]>([]);
-  const [boards, setFinishedBoards] = useState<Board[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<MaterialRequest[]>([]);
+  const [stats, setStats] = useState({
+    totalMaterials: 0,
+    lowStockMaterials: 0,
+    totalTools: 0,
+    toolsInUse: 0,
+    activeJobs: 0,
+    totalBoards: 0,
+    lowStockBoards: 0,
+    pendingRequests: 0
+  });
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -33,244 +43,236 @@ export default function DashboardPage() {
       return;
     }
 
-    // Load data from localStorage
-    const storedMaterials = localStorage.getItem("josm_materials");
-    const storedTools = localStorage.getItem("josm_tools");
-    const storedJobs = localStorage.getItem("josm_jobs");
-    const storedBoards = localStorage.getItem("josm_boards");
-    const storedRequests = localStorage.getItem("josm_material_requests");
+    const materials = getFromStorage<Material>(STORAGE_KEYS.MATERIALS);
+    const tools = getFromStorage<Tool>(STORAGE_KEYS.TOOLS);
+    const jobs = getFromStorage<Job>(STORAGE_KEYS.JOBS);
+    const boards = getFromStorage<Board>(STORAGE_KEYS.BOARDS);
+    const requests = getFromStorage<MaterialRequest>(STORAGE_KEYS.MATERIAL_REQUESTS);
 
-    if (storedMaterials) setMaterials(JSON.parse(storedMaterials));
-    if (storedTools) setTools(JSON.parse(storedTools));
-    if (storedJobs) setJobs(JSON.parse(storedJobs));
-    if (storedBoards) setFinishedBoards(JSON.parse(storedBoards));
-    if (storedRequests) setPendingRequests(JSON.parse(storedRequests));
+    const lowStockMaterials = materials.filter(m => m.quantity <= m.minThreshold);
+    const toolsInUse = tools.filter(t => t.status === "checked_out" && !t.isDamaged);
+    const activeJobs = jobs.filter(j => j.status !== "completed");
+    const lowStockBoards = boards.filter(b => b.quantity <= b.minThreshold);
+    const pendingRequests = requests.filter(r => r.status === "pending");
+
+    setStats({
+      totalMaterials: materials.length,
+      lowStockMaterials: lowStockMaterials.length,
+      totalTools: tools.length,
+      toolsInUse: toolsInUse.length,
+      activeJobs: activeJobs.length,
+      totalBoards: boards.reduce((acc, b) => acc + b.quantity, 0),
+      lowStockBoards: lowStockBoards.length,
+      pendingRequests: pendingRequests.length
+    });
   }, [isAuthenticated, router]);
 
-  // Calculate statistics
-  const lowStockMaterials = materials.filter(m => m.quantity <= m.minThreshold);
-  const checkedOutTools = tools.filter(t => t.status === "checked_out");
-  const damagedTools = tools.filter(t => t.status === "damaged");
-  const activeJobs = jobs.filter(j => j.status !== "completed");
-  const lowStockBoards = boards.filter(b => b.quantity <= b.minThreshold);
-  const pendingRequestsCount = pendingRequests.filter(r => r.status === "pending").length;
-
-  const stats = [
-    {
-      title: "Total Materials",
-      value: materials.length,
-      icon: Package,
-      color: "from-blue-500 to-cyan-500",
-      description: `${lowStockMaterials.length} below threshold`,
-      alert: lowStockMaterials.length > 0
-    },
-    {
-      title: "Tools in Use",
-      value: checkedOutTools.length,
-      icon: Wrench,
-      color: "from-purple-500 to-pink-500",
-      description: `${damagedTools.length} damaged`,
-      alert: damagedTools.length > 0
-    },
-    {
-      title: "Active Jobs",
-      value: activeJobs.length,
-      icon: ClipboardList,
-      color: "from-orange-500 to-red-500",
-      description: `${jobs.filter(j => j.status === "completed").length} completed`,
-      alert: false
-    },
-    {
-      title: "Finished Boards",
-      value: boards.reduce((sum, b) => sum + b.quantity, 0),
-      icon: Box,
-      color: "from-green-500 to-emerald-500",
-      description: `${lowStockBoards.length} below threshold`,
-      alert: lowStockBoards.length > 0
-    }
-  ];
-
-  if (user?.role === "store_keeper" || user?.role === "admin") {
-    stats.push({
-      title: "Pending Requests",
-      value: pendingRequestsCount,
-      icon: AlertTriangle,
-      color: "from-yellow-500 to-amber-500",
-      description: "Awaiting approval",
-      alert: pendingRequestsCount > 0
-    });
-  }
+  const canViewMaterials = hasPermission(user, "view_materials");
+  const canViewTools = hasPermission(user, "view_tools");
+  const canViewJobs = hasPermission(user, "view_jobs");
+  const canViewBoards = hasPermission(user, "view_boards");
+  const canApproveRequests = hasPermission(user, "approve_requests");
 
   return (
     <>
       <SEO
-        title="Dashboard - Josm Electrical Inventory System"
-        description="Overview of inventory, tools, jobs, and finished boards"
+        title="Dashboard - Josm Electrical"
+        description="Inventory and job management dashboard"
       />
       <DashboardLayout>
         <div className="space-y-8">
-          {/* Header */}
-          <div>
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              Welcome back, {user?.name}
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Here's what's happening with your inventory today
+          {/* Welcome Section */}
+          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl">
+            <h1 className="text-4xl font-bold mb-2">Welcome back, {user?.name}!</h1>
+            <p className="text-blue-100 text-lg">
+              {user?.role === "admin" && "Full system access - Manage everything"}
+              {user?.role === "store_keeper" && "Manage inventory and process requests"}
+              {user?.role === "supervisor" && "Oversee jobs and track progress"}
+              {user?.role === "worker" && "View jobs and request materials"}
+              {user?.role === "sales_warehouse" && "Manage finished goods and customer items"}
             </p>
           </div>
 
-          {/* Alerts */}
-          {(lowStockMaterials.length > 0 || lowStockBoards.length > 0 || damagedTools.length > 0 || pendingRequestsCount > 0) && (
-            <div className="space-y-3">
-              {lowStockMaterials.length > 0 && (
-                <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
-                  <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                  <AlertDescription className="text-orange-800 dark:text-orange-300">
-                    <strong>{lowStockMaterials.length} materials</strong> are below minimum threshold and need restocking
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {lowStockBoards.length > 0 && (
-                <Alert className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900">
-                  <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  <AlertDescription className="text-red-800 dark:text-red-300">
-                    <strong>{lowStockBoards.length} finished boards</strong> are below minimum threshold
-                  </AlertDescription>
-                </Alert>
+          {/* Alerts Section */}
+          {(stats.lowStockMaterials > 0 || stats.lowStockBoards > 0 || stats.pendingRequests > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {stats.lowStockMaterials > 0 && canViewMaterials && (
+                <Card className="border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                        <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Low Stock Materials</p>
+                        <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{stats.lowStockMaterials}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
-              {damagedTools.length > 0 && (
-                <Alert className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-900">
-                  <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                  <AlertDescription className="text-yellow-800 dark:text-yellow-300">
-                    <strong>{damagedTools.length} tools</strong> are marked as damaged and need attention
-                  </AlertDescription>
-                </Alert>
+              {stats.lowStockBoards > 0 && canViewBoards && (
+                <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-red-100 dark:bg-red-900 rounded-lg">
+                        <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-red-600 dark:text-red-400">Low Stock Boards</p>
+                        <p className="text-2xl font-bold text-red-700 dark:text-red-300">{stats.lowStockBoards}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
-              {pendingRequestsCount > 0 && (user?.role === "store_keeper" || user?.role === "admin") && (
-                <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
-                  <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <AlertDescription className="text-blue-800 dark:text-blue-300">
-                    <strong>{pendingRequestsCount} material requests</strong> are pending your approval
-                  </AlertDescription>
-                </Alert>
+              {stats.pendingRequests > 0 && canApproveRequests && (
+                <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/30">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                        <PackagePlus className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Pending Requests</p>
+                        <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.pendingRequests}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
           )}
 
-          {/* Stats Grid */}
+          {/* Main Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
-              <Card key={index} className="relative overflow-hidden border-slate-200 dark:border-slate-800 hover:shadow-lg transition-shadow">
-                <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-5`}></div>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    {stat.title}
-                  </CardTitle>
-                  <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.color}`}>
-                    <stat.icon className="h-4 w-4 text-white" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-slate-900 dark:text-white mb-1">
-                    {stat.value}
-                  </div>
-                  <p className={`text-xs flex items-center gap-1 ${stat.alert ? "text-orange-600 dark:text-orange-400 font-semibold" : "text-slate-600 dark:text-slate-400"}`}>
-                    {stat.alert && <AlertTriangle className="h-3 w-3" />}
-                    {stat.description}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+            {canViewMaterials && (
+              <Link href="/materials">
+                <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-600">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                      Materials
+                    </CardTitle>
+                    <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.totalMaterials}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                      <TrendingUp className="h-3 w-3" />
+                      Track raw materials
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
+
+            {canViewTools && (
+              <Link href="/tools">
+                <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer border-purple-200 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                      Tools
+                    </CardTitle>
+                    <Wrench className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.totalTools}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {stats.toolsInUse} currently in use
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
+
+            {canViewJobs && (
+              <Link href="/jobs">
+                <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer border-green-200 dark:border-green-800 hover:border-green-400 dark:hover:border-green-600">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                      Active Jobs
+                    </CardTitle>
+                    <ClipboardList className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.activeJobs}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      In progress
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
+
+            {canViewBoards && (
+              <Link href="/boards">
+                <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer border-indigo-200 dark:border-indigo-800 hover:border-indigo-400 dark:hover:border-indigo-600">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                      Finished Boards
+                    </CardTitle>
+                    <Box className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{stats.totalBoards}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Ready for delivery
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
           </div>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Jobs */}
-            <Card className="border-slate-200 dark:border-slate-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  Recent Jobs
-                </CardTitle>
-                <CardDescription>Latest job cards in the system</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {activeJobs.length === 0 ? (
-                  <p className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">
-                    No active jobs at the moment
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {activeJobs.slice(0, 5).map((job) => (
-                      <div key={job.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-900 dark:text-white">
-                            {job.jobCardNumber}
-                          </p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">
-                            {job.boardName} - {job.boardColor}
-                          </p>
-                        </div>
-                        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          job.status === "fabrication" 
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                            : job.status === "assembling"
-                            ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                            : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                        }`}>
-                          {job.status}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Common tasks and shortcuts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {hasPermission(user, "add_materials") && (
+                  <Link href="/materials">
+                    <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                      <Package className="h-6 w-6" />
+                      <span>Add Materials</span>
+                    </Button>
+                  </Link>
                 )}
-              </CardContent>
-            </Card>
+                
+                {hasPermission(user, "request_materials") && (
+                  <Link href="/material-requests">
+                    <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                      <PackagePlus className="h-6 w-6" />
+                      <span>Request Materials</span>
+                    </Button>
+                  </Link>
+                )}
 
-            {/* Low Stock Items */}
-            <Card className="border-slate-200 dark:border-slate-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                  Low Stock Alert
-                </CardTitle>
-                <CardDescription>Materials below minimum threshold</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {lowStockMaterials.length === 0 ? (
-                  <p className="text-sm text-slate-600 dark:text-slate-400 text-center py-8">
-                    All materials are well stocked
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {lowStockMaterials.slice(0, 5).map((material) => (
-                      <div key={material.id} className="flex items-center justify-between p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20">
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-900 dark:text-white">
-                            {material.name}
-                          </p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">
-                            {material.category} {material.variant && `- ${material.variant}`}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-orange-600 dark:text-orange-400">
-                            {material.quantity} {material.unit}
-                          </p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">
-                            Min: {material.minThreshold}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {hasPermission(user, "create_jobs") && (
+                  <Link href="/jobs">
+                    <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                      <ClipboardList className="h-6 w-6" />
+                      <span>Create Job Card</span>
+                    </Button>
+                  </Link>
                 )}
-              </CardContent>
-            </Card>
-          </div>
+
+                {hasPermission(user, "view_reports") && (
+                  <Link href="/reports">
+                    <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                      <TrendingUp className="h-6 w-6" />
+                      <span>View Reports</span>
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </DashboardLayout>
     </>
