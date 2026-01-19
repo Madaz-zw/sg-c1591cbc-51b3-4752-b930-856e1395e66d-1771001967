@@ -18,36 +18,45 @@ export type Database = {
       board_transactions: {
         Row: {
           board_id: string
+          board_name: string | null
           created_at: string | null
           customer_name: string | null
+          date: string | null
           id: string
           job_card_number: string | null
           notes: string | null
           quantity: number
-          transaction_type: string
+          type: string
           user_id: string | null
+          user_name: string | null
         }
         Insert: {
           board_id: string
+          board_name?: string | null
           created_at?: string | null
           customer_name?: string | null
+          date?: string | null
           id?: string
           job_card_number?: string | null
           notes?: string | null
           quantity: number
-          transaction_type: string
+          type: string
           user_id?: string | null
+          user_name?: string | null
         }
         Update: {
           board_id?: string
+          board_name?: string | null
           created_at?: string | null
           customer_name?: string | null
+          date?: string | null
           id?: string
           job_card_number?: string | null
           notes?: string | null
           quantity?: number
-          transaction_type?: string
+          type?: string
           user_id?: string | null
+          user_name?: string | null
         }
         Relationships: [
           {
