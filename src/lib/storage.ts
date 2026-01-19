@@ -15,6 +15,7 @@ export function generateId(): string {
 }
 
 export const STORAGE_KEYS = {
+  USERS: "josm_users",
   MATERIALS: "josm_materials",
   TOOLS: "josm_tools",
   JOBS: "josm_jobs",

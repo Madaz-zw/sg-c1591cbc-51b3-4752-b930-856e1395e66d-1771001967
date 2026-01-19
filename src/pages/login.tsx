@@ -8,23 +8,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { login, mockUsers } from "@/lib/mockAuth";
 import { LogIn, Factory } from "lucide-react";
 import { SEO } from "@/components/SEO";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const { login: authLogin } = useAuth();
   const router = useRouter();
-  const { setUser } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    const user = login(email);
+    if (!email || !password) {
+      setError("Please enter both email and password");
+      return;
+    }
+
+    const user = authLogin(email, password);
     if (user) {
-      setUser(user);
       router.push("/dashboard");
     } else {
-      setError("Invalid email. Please try again.");
+      setError("Invalid email or password");
     }
   };
 
@@ -54,7 +60,7 @@ export default function LoginPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-slate-300">Email</Label>
                   <Input
@@ -63,6 +69,19 @@ export default function LoginPage() {
                     placeholder="your.email@josm.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-slate-300">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                     className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                   />
@@ -80,6 +99,15 @@ export default function LoginPage() {
                   Sign In
                 </Button>
               </form>
+
+              <div className="text-center mt-4">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Need an account?{" "}
+                  <Link href="/register" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+                    Register here
+                  </Link>
+                </p>
+              </div>
 
               {/* Demo Accounts */}
               <div className="mt-6 pt-6 border-t border-slate-700">

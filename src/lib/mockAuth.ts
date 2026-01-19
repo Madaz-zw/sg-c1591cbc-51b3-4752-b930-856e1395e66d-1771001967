@@ -1,68 +1,138 @@
 import { User, UserRole } from "@/types";
+import { getFromStorage, saveToStorage, generateId, STORAGE_KEYS } from "./storage";
 
-// Mock authentication - will be replaced with Supabase Auth
-const STORAGE_KEY = "josm_current_user";
+// Current user session storage
+const CURRENT_USER_KEY = "josm_current_user";
 
-export const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "Admin User",
-    email: "admin@josm.com",
-    role: "admin",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "2",
-    name: "Store Keeper",
-    email: "storekeeper@josm.com",
-    role: "store_keeper",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "3",
-    name: "Supervisor John",
-    email: "supervisor@josm.com",
-    role: "supervisor",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "4",
-    name: "Worker Sam",
-    email: "worker@josm.com",
-    role: "worker",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "5",
-    name: "Sales Manager",
-    email: "sales@josm.com",
-    role: "sales",
-    createdAt: new Date().toISOString()
+// Initialize default admin user if no users exist
+export function initializeDefaultUsers(): void {
+  if (typeof window === "undefined") return;
+  
+  const users = getFromStorage<User>(STORAGE_KEYS.USERS);
+  
+  if (users.length === 0) {
+    const defaultUsers: User[] = [
+      {
+        id: generateId(),
+        name: "Admin User",
+        email: "admin@josm.com",
+        password: "admin123",
+        role: "admin",
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: generateId(),
+        name: "Store Keeper",
+        email: "storekeeper@josm.com",
+        password: "store123",
+        role: "store_keeper",
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: generateId(),
+        name: "Supervisor John",
+        email: "supervisor@josm.com",
+        password: "super123",
+        role: "supervisor",
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: generateId(),
+        name: "Worker Sam",
+        email: "worker@josm.com",
+        password: "worker123",
+        role: "worker",
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: generateId(),
+        name: "Sales Manager",
+        email: "sales@josm.com",
+        password: "sales123",
+        role: "sales_warehouse",
+        createdAt: new Date().toISOString()
+      }
+    ];
+    saveToStorage(STORAGE_KEYS.USERS, defaultUsers);
   }
-];
+}
 
 export function getCurrentUser(): User | null {
   if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = localStorage.getItem(CURRENT_USER_KEY);
   return stored ? JSON.parse(stored) : null;
 }
 
 export function setCurrentUser(user: User | null): void {
   if (typeof window === "undefined") return;
   if (user) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    // Remove password before storing in session
+    const { password, ...userWithoutPassword } = user;
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userWithoutPassword));
   } else {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(CURRENT_USER_KEY);
   }
 }
 
-export function login(email: string): User | null {
-  const user = mockUsers.find(u => u.email === email);
+export function login(email: string, password: string): User | null {
+  initializeDefaultUsers();
+  const users = getFromStorage<User>(STORAGE_KEYS.USERS);
+  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+  
   if (user) {
     setCurrentUser(user);
     return user;
   }
   return null;
+}
+
+export function registerUser(userData: Omit<User, "id" | "createdAt">): User {
+  initializeDefaultUsers();
+  const users = getFromStorage<User>(STORAGE_KEYS.USERS);
+  
+  // Check if email already exists
+  const existingUser = users.find(u => u.email.toLowerCase() === userData.email.toLowerCase());
+  if (existingUser) {
+    throw new Error("Email already exists");
+  }
+  
+  const newUser: User = {
+    ...userData,
+    id: generateId(),
+    createdAt: new Date().toISOString()
+  };
+  
+  users.push(newUser);
+  saveToStorage(STORAGE_KEYS.USERS, users);
+  
+  return newUser;
+}
+
+export function updateUser(userId: string, updates: Partial<Omit<User, "id" | "createdAt">>): User | null {
+  const users = getFromStorage<User>(STORAGE_KEYS.USERS);
+  const userIndex = users.findIndex(u => u.id === userId);
+  
+  if (userIndex === -1) return null;
+  
+  users[userIndex] = { ...users[userIndex], ...updates };
+  saveToStorage(STORAGE_KEYS.USERS, users);
+  
+  return users[userIndex];
+}
+
+export function deleteUser(userId: string): boolean {
+  const users = getFromStorage<User>(STORAGE_KEYS.USERS);
+  const filteredUsers = users.filter(u => u.id !== userId);
+  
+  if (filteredUsers.length === users.length) return false;
+  
+  saveToStorage(STORAGE_KEYS.USERS, filteredUsers);
+  return true;
+}
+
+export function getAllUsers(): User[] {
+  initializeDefaultUsers();
+  return getFromStorage<User>(STORAGE_KEYS.USERS);
 }
 
 export function logout(): void {
@@ -76,12 +146,15 @@ export function hasPermission(user: User | null, permission: string): boolean {
     admin: ["all"],
     store_keeper: [
       "view_materials",
+      "add_materials",
       "manage_materials",
       "view_tools",
       "manage_tools",
       "approve_requests",
       "create_jobs",
-      "view_reports"
+      "view_jobs",
+      "view_reports",
+      "manage_users"
     ],
     supervisor: [
       "view_materials",

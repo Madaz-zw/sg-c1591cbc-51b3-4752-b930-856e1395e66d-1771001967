@@ -16,7 +16,8 @@ import {
   Menu,
   X,
   Home,
-  PackagePlus
+  PackagePlus,
+  CircuitBoard
 } from "lucide-react";
 import { useState } from "react";
 import { logout } from "@/lib/mockAuth";
@@ -38,14 +39,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "all" },
+    { name: "Dashboard", href: "/dashboard", icon: Home, permission: null },
     { name: "Materials", href: "/materials", icon: Package, permission: "view_materials" },
     { name: "Material Requests", href: "/material-requests", icon: PackagePlus, permission: "request_materials" },
     { name: "Tools", href: "/tools", icon: Wrench, permission: "view_tools" },
     { name: "Job Cards", href: "/jobs", icon: ClipboardList, permission: "view_jobs" },
-    { name: "Finished Boards", href: "/boards", icon: Box, permission: "view_boards" },
+    { name: "Finished Boards", href: "/boards", icon: CircuitBoard, permission: "view_boards" },
     { name: "Customer Goods", href: "/customer-goods", icon: Users, permission: "view_customer_goods" },
-    { name: "Reports", href: "/reports", icon: FileText, permission: "view_reports" }
+    { name: "Reports", href: "/reports", icon: FileText, permission: "view_reports" },
+    { name: "User Management", href: "/users", icon: Users, permission: "manage_users" }
   ];
 
   const menuItems = [

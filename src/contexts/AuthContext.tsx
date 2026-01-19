@@ -1,36 +1,38 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types";
-import { getCurrentUser, setCurrentUser as setStoredUser } from "@/lib/mockAuth";
+import { getCurrentUser, login as authLogin, logout as authLogout, initializeDefaultUsers } from "@/lib/mockAuth";
 
 interface AuthContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
   isAuthenticated: boolean;
+  login: (email: string, password: string) => User | null;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUserState] = useState<User | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    setMounted(true);
+    initializeDefaultUsers();
     const currentUser = getCurrentUser();
-    setUserState(currentUser);
+    setUser(currentUser);
   }, []);
 
-  const setUser = (newUser: User | null) => {
-    setUserState(newUser);
-    setStoredUser(newUser);
+  const login = (email: string, password: string) => {
+    const loggedInUser = authLogin(email, password);
+    setUser(loggedInUser);
+    return loggedInUser;
   };
 
-  if (!mounted) {
-    return null;
-  }
+  const logout = () => {
+    authLogout();
+    setUser(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
