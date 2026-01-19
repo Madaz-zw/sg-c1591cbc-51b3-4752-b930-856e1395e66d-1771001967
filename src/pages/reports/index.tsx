@@ -294,7 +294,7 @@ export default function ReportsPage() {
                               </TableCell>
                               <TableCell>{t.quantity}</TableCell>
                               <TableCell>{t.jobCardNumber || "-"}</TableCell>
-                              <TableCell className="text-sm">{t.performedByName}</TableCell>
+                              <TableCell className="text-sm">{t.userName}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -386,7 +386,7 @@ export default function ReportsPage() {
                                   {t.type}
                                 </span>
                               </TableCell>
-                              <TableCell>{t.workerName}</TableCell>
+                              <TableCell>{t.userName}</TableCell>
                               <TableCell className="text-sm">{t.notes || "-"}</TableCell>
                             </TableRow>
                           ))}

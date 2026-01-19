@@ -91,7 +91,7 @@ export default function ToolsPage() {
       filtered = filtered.filter(t =>
         t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (t.checkedOutByName && t.checkedOutByName.toLowerCase().includes(searchTerm.toLowerCase()))
+        (t.checkedOutTo && t.checkedOutTo.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -122,7 +122,8 @@ export default function ToolsPage() {
       name: newTool.name,
       code: newTool.code,
       status: "available",
-      category: newTool.category
+      category: newTool.category,
+      isDamaged: false
     };
 
     const updatedTools = [...tools, tool];
@@ -145,8 +146,8 @@ export default function ToolsPage() {
           ...t,
           status: "checked_out" as const,
           checkedOutBy: user?.id,
-          checkedOutByName: workerName,
-          checkedOutAt: new Date().toISOString()
+          checkedOutTo: workerName,
+          checkedOutDate: new Date().toISOString()
         };
       }
       return t;
@@ -161,8 +162,8 @@ export default function ToolsPage() {
       toolId: selectedTool.id,
       toolName: `${selectedTool.name} (${selectedTool.code})`,
       type: "checkout",
-      workerName: workerName,
-      workerId: user?.id || "",
+      userId: user?.id || "",
+      userName: workerName,
       date: new Date().toISOString(),
       notes: notes || undefined
     });
@@ -183,8 +184,8 @@ export default function ToolsPage() {
           ...t,
           status: "available" as const,
           checkedOutBy: undefined,
-          checkedOutByName: undefined,
-          checkedOutAt: undefined
+          checkedOutTo: undefined,
+          checkedOutDate: undefined
         };
       }
       return t;
@@ -199,8 +200,8 @@ export default function ToolsPage() {
       toolId: selectedTool.id,
       toolName: `${selectedTool.name} (${selectedTool.code})`,
       type: "return",
-      workerName: selectedTool.checkedOutByName || "",
-      workerId: selectedTool.checkedOutBy || "",
+      userId: selectedTool.checkedOutBy || "",
+      userName: selectedTool.checkedOutTo || "",
       date: new Date().toISOString(),
       notes: notes || undefined
     });
@@ -220,8 +221,8 @@ export default function ToolsPage() {
           ...t,
           status: "damaged" as const,
           checkedOutBy: undefined,
-          checkedOutByName: undefined,
-          checkedOutAt: undefined
+          checkedOutTo: undefined,
+          checkedOutDate: undefined
         };
       }
       return t;
@@ -236,8 +237,8 @@ export default function ToolsPage() {
       toolId: selectedTool.id,
       toolName: `${selectedTool.name} (${selectedTool.code})`,
       type: "damage",
-      workerName: user?.name || "",
-      workerId: user?.id || "",
+      userId: user?.id || "",
+      userName: user?.name || "",
       date: new Date().toISOString(),
       notes: notes || "Tool marked as damaged"
     });
@@ -458,16 +459,16 @@ export default function ToolsPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {tool.checkedOutByName ? (
+                            {tool.checkedOutTo ? (
                               <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                {tool.checkedOutByName}
+                                {tool.checkedOutTo}
                               </span>
                             ) : (
                               "-"
                             )}
                           </TableCell>
                           <TableCell className="text-sm text-slate-600 dark:text-slate-400">
-                            {tool.checkedOutAt ? new Date(tool.checkedOutAt).toLocaleString() : "-"}
+                            {tool.checkedOutDate ? new Date(tool.checkedOutDate).toLocaleString() : "-"}
                           </TableCell>
                           {canManage && (
                             <TableCell className="text-right">
@@ -564,7 +565,7 @@ export default function ToolsPage() {
               <DialogHeader>
                 <DialogTitle>Return Tool</DialogTitle>
                 <DialogDescription>
-                  {selectedTool?.name} ({selectedTool?.code}) - Currently with {selectedTool?.checkedOutByName}
+                  {selectedTool?.name} ({selectedTool?.code}) - Currently with {selectedTool?.checkedOutTo}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">

@@ -230,8 +230,8 @@ export default function JobCardsPage() {
       type: "issue",
       quantity: quantity,
       jobCardNumber: selectedJob.jobCardNumber,
-      performedBy: user?.id || "",
-      performedByName: user?.name || "",
+      userId: user?.id || "",
+      userName: user?.name || "",
       date: new Date().toISOString(),
       notes: `Used in Job ${selectedJob.jobCardNumber} (${selectedJob.status})`
     });
