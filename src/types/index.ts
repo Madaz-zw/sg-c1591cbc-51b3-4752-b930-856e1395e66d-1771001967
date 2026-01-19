@@ -1,5 +1,5 @@
 // User Types
-export type UserRole = "admin" | "store_keeper" | "supervisor" | "worker" | "sales";
+export type UserRole = "admin" | "store_keeper" | "supervisor" | "worker" | "sales" | "sales_warehouse";
 
 export interface User {
   id: string;
@@ -60,6 +60,7 @@ export interface Tool {
   checkedOutByName?: string;
   checkedOutAt?: string;
   category: string;
+  isDamaged?: boolean;
 }
 
 export interface ToolTransaction {
@@ -99,6 +100,9 @@ export interface JobCard {
   assemblingCompletedAt?: string;
   completedAt?: string;
 }
+
+// Alias for backward compatibility
+export type Job = JobCard;
 
 // Finished Board Types
 export interface Board {
