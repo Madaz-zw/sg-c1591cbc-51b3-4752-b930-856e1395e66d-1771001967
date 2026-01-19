@@ -23,20 +23,18 @@ export interface Material {
 
 export interface MaterialRequest {
   id: string;
+  materialId: string;
+  materialName: string;
+  quantity: number;
   requestedBy: string;
   requestedByName: string;
   jobCardNumber: string;
-  boardName: string;
-  boardColor: string;
-  materials: {
-    materialId: string;
-    materialName: string;
-    quantity: number;
-  }[];
   status: "pending" | "approved" | "rejected";
-  createdAt: string;
+  requestDate: string;
   approvedBy?: string;
-  approvedAt?: string;
+  approvedByName?: string;
+  approvalDate?: string;
+  notes?: string;
 }
 
 export interface MaterialTransaction {

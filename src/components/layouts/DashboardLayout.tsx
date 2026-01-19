@@ -14,7 +14,9 @@ import {
   FileText,
   LogOut,
   Menu,
-  X
+  X,
+  Home,
+  PackagePlus
 } from "lucide-react";
 import { useState } from "react";
 import { logout } from "@/lib/mockAuth";
@@ -43,6 +45,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Finished Boards", href: "/boards", icon: Box, permission: "view_boards" },
     { name: "Customer Goods", href: "/customer-goods", icon: Users, permission: "view_customer_goods" },
     { name: "Reports", href: "/reports", icon: FileText, permission: "view_reports" }
+  ];
+
+  const menuItems = [
+    { href: "/dashboard", icon: Home, label: "Dashboard", permission: "view_dashboard" },
+    { href: "/materials", icon: Package, label: "Materials", permission: "view_materials" },
+    { href: "/material-requests", icon: PackagePlus, label: "Material Requests", permission: "request_materials" },
+    { href: "/tools", icon: Wrench, label: "Tools & Equipment", permission: "view_tools" }
   ];
 
   const visibleNavigation = navigation.filter(item => 
