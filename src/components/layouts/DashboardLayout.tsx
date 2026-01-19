@@ -40,6 +40,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "all" },
     { name: "Materials", href: "/materials", icon: Package, permission: "view_materials" },
+    { name: "Material Requests", href: "/material-requests", icon: PackagePlus, permission: "request_materials" },
     { name: "Tools", href: "/tools", icon: Wrench, permission: "view_tools" },
     { name: "Job Cards", href: "/jobs", icon: ClipboardList, permission: "view_jobs" },
     { name: "Finished Boards", href: "/boards", icon: Box, permission: "view_boards" },
