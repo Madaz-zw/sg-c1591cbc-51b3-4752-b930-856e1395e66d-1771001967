@@ -105,6 +105,8 @@ export type Database = {
           id: string
           notes: string | null
           quantity: number
+          received_by: string | null
+          received_by_name: string | null
           received_date: string | null
           status: string
           updated_at: string | null
@@ -117,6 +119,8 @@ export type Database = {
           id?: string
           notes?: string | null
           quantity?: number
+          received_by?: string | null
+          received_by_name?: string | null
           received_date?: string | null
           status?: string
           updated_at?: string | null
@@ -129,6 +133,8 @@ export type Database = {
           id?: string
           notes?: string | null
           quantity?: number
+          received_by?: string | null
+          received_by_name?: string | null
           received_date?: string | null
           status?: string
           updated_at?: string | null
@@ -141,6 +147,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_goods_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       job_cards: {
@@ -149,8 +162,11 @@ export type Database = {
           assembling_status: string | null
           board_color: string
           board_name: string
+          board_type: string | null
+          completed_at: string | null
           created_at: string | null
           created_by: string | null
+          created_by_name: string | null
           fabrication_completed_at: string | null
           fabrication_status: string | null
           id: string
@@ -158,6 +174,8 @@ export type Database = {
           materials_used: Json | null
           overall_status: string | null
           recipient_name: string
+          status: string | null
+          supervisor_id: string | null
           supervisor_name: string
           updated_at: string | null
         }
@@ -166,8 +184,11 @@ export type Database = {
           assembling_status?: string | null
           board_color: string
           board_name: string
+          board_type?: string | null
+          completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
+          created_by_name?: string | null
           fabrication_completed_at?: string | null
           fabrication_status?: string | null
           id?: string
@@ -175,6 +196,8 @@ export type Database = {
           materials_used?: Json | null
           overall_status?: string | null
           recipient_name: string
+          status?: string | null
+          supervisor_id?: string | null
           supervisor_name: string
           updated_at?: string | null
         }
@@ -183,8 +206,11 @@ export type Database = {
           assembling_status?: string | null
           board_color?: string
           board_name?: string
+          board_type?: string | null
+          completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
+          created_by_name?: string | null
           fabrication_completed_at?: string | null
           fabrication_status?: string | null
           id?: string
@@ -192,6 +218,8 @@ export type Database = {
           materials_used?: Json | null
           overall_status?: string | null
           recipient_name?: string
+          status?: string | null
+          supervisor_id?: string | null
           supervisor_name?: string
           updated_at?: string | null
         }
@@ -199,6 +227,13 @@ export type Database = {
           {
             foreignKeyName: "job_cards_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_cards_supervisor_id_fkey"
+            columns: ["supervisor_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
