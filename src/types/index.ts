@@ -44,10 +44,13 @@ export interface MaterialTransaction {
   materialName: string;
   type: "issue" | "receive" | "return";
   quantity: number;
-  jobCardNumber?: string;
-  performedBy: string;
-  performedByName: string;
   date: string;
+  userId?: string;
+  userName?: string;
+  jobCardNumber?: string;
+  boardName?: string;
+  boardColor?: string;
+  recipientName?: string;
   notes?: string;
 }
 
@@ -55,13 +58,13 @@ export interface MaterialTransaction {
 export interface Tool {
   id: string;
   name: string;
-  code: string;
-  status: "available" | "checked_out" | "damaged";
-  checkedOutBy?: string;
-  checkedOutByName?: string;
-  checkedOutAt?: string;
+  code?: string;
   category: string;
-  isDamaged?: boolean;
+  status: "available" | "checked_out" | "damaged";
+  checkedOutTo?: string;
+  checkedOutBy?: string;
+  checkedOutDate?: string;
+  isDamaged: boolean;
 }
 
 export interface ToolTransaction {
@@ -69,8 +72,8 @@ export interface ToolTransaction {
   toolId: string;
   toolName: string;
   type: "checkout" | "return" | "damage";
-  workerName: string;
-  workerId: string;
+  userId: string;
+  userName: string;
   date: string;
   notes?: string;
 }

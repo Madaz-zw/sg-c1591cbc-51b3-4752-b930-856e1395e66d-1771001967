@@ -112,14 +112,6 @@ export const materialService = {
 
   // Get low stock
   async getLowStockMaterials(): Promise<Material[]> {
-    const { data, error } = await supabase
-      .from("materials")
-      .select("*")
-      .lte("quantity", supabase.rpc("min_threshold")); // This query might be complex with dynamic threshold
-      // Simplified: fetch all and filter in JS for flexibility
-    
-    if (error) throw error; // Actually let's just use getAllMaterials
-    
     const all = await this.getAllMaterials();
     return all.filter(m => m.quantity <= m.minThreshold);
   },
