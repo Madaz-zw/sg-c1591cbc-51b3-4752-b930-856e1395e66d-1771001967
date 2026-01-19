@@ -14,7 +14,7 @@ import {
   Search,
   AlertTriangle,
   UserCheck,
-  ToolIcon,
+  Hammer,
   Filter
 } from "lucide-react";
 import { Tool, ToolTransaction } from "@/types";
@@ -321,7 +321,7 @@ export default function ToolsPage() {
                 <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
                   Total Tools
                 </CardTitle>
-                <ToolIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                <Hammer className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-slate-900 dark:text-white">{tools.length}</div>

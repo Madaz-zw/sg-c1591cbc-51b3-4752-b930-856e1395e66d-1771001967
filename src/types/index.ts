@@ -103,9 +103,9 @@ export interface JobCard {
 }
 
 // Finished Board Types
-export interface FinishedBoard {
+export interface Board {
   id: string;
-  boardType: "dinrail" | "hynman";
+  type: "Dinrail" | "Hynman";
   color: string;
   quantity: number;
   minThreshold: number;
@@ -115,13 +115,13 @@ export interface FinishedBoard {
 export interface BoardTransaction {
   id: string;
   boardId: string;
-  boardType: string;
-  color: string;
+  boardName: string;
   type: "manufactured" | "sold";
   quantity: number;
   jobCardNumber?: string;
   performedBy: string;
   performedByName: string;
+  customerName?: string;
   date: string;
   notes?: string;
 }
