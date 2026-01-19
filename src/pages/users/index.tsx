@@ -9,15 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { SEO } from "@/components/SEO";
 import {
   Users,
-  Plus,
-  Search,
-  Trash2,
-  Edit,
+  UserPlus,
   Shield,
-  UserCheck
+  Trash2,
+  Mail,
+  User as UserIcon,
+  Filter,
+  Search
 } from "lucide-react";
 import { User, UserRole } from "@/types";
-import { getAllUsers, deleteUser, updateUser, registerUser, hasPermission } from "@/lib/mockAuth";
+import { hasPermission } from "@/lib/mockAuth";
+import { userService } from "@/services/userService";
 import {
   Dialog,
   DialogContent,
@@ -44,14 +46,16 @@ import {
 } from "@/components/ui/table";
 
 export default function UsersPage() {
-  const { user: currentUser, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // New User Form State
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -65,103 +69,120 @@ export default function UsersPage() {
       return;
     }
 
-    if (!hasPermission(currentUser, "manage_users")) {
+    // Only admin can view/manage users
+    if (!hasPermission(user, "manage_users")) {
       router.push("/dashboard");
       return;
     }
 
     loadUsers();
-  }, [isAuthenticated, currentUser, router]);
+  }, [isAuthenticated, user, router]);
 
-  const loadUsers = () => {
-    const allUsers = getAllUsers();
-    setUsers(allUsers);
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await userService.getAllUsers();
+      setUsers(data);
+      setFilteredUsers(data);
+    } catch (error) {
+      console.error("Failed to load users:", error);
+      alert("Failed to load users");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddUser = () => {
+  useEffect(() => {
+    let filtered = users;
+
+    if (searchTerm) {
+      filtered = filtered.filter(u =>
+        u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (roleFilter !== "all") {
+      filtered = filtered.filter(u => u.role === roleFilter);
+    }
+
+    setFilteredUsers(filtered);
+  }, [searchTerm, roleFilter, users]);
+
+  const handleAddUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.password) {
       alert("Please fill in all fields");
       return;
     }
 
     try {
-      registerUser(
+      await userService.registerUser(
         newUser.name,
         newUser.email,
         newUser.password,
         newUser.role
       );
-      setNewUser({ name: "", email: "", password: "", role: "worker" });
+
+      await loadUsers();
+      setNewUser({
+        name: "",
+        email: "",
+        password: "",
+        role: "worker"
+      });
       setAddDialogOpen(false);
-      loadUsers();
     } catch (error) {
+      console.error("Failed to add user:", error);
       alert(error instanceof Error ? error.message : "Failed to add user");
     }
   };
 
-  const handleEditUser = () => {
-    if (!selectedUser) return;
-
-    updateUser(selectedUser.id, {
-      name: selectedUser.name,
-      email: selectedUser.email,
-      role: selectedUser.role
-    });
-
-    setEditDialogOpen(false);
-    setSelectedUser(null);
-    loadUsers();
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    if (userId === currentUser?.id) {
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    if (userId === user?.id) {
       alert("You cannot delete your own account");
       return;
     }
 
-    if (confirm("Are you sure you want to delete this user?")) {
-      deleteUser(userId);
-      loadUsers();
+    try {
+      await userService.deleteUser(userId);
+      await loadUsers();
+    } catch (error) {
+      console.error("Failed to delete user:", error);
+      alert("Failed to delete user");
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const getRoleBadge = (role: UserRole) => {
-    const colors = {
-      admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-      store_keeper: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      supervisor: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-      worker: "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200",
-      sales: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-      sales_warehouse: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
-    };
-
-    const labels = {
-      admin: "Admin",
-      store_keeper: "Store Keeper",
-      supervisor: "Supervisor",
-      worker: "Worker",
-      sales: "Sales",
-      sales_warehouse: "Sales/Warehouse"
-    };
-
-    return (
-      <Badge className={colors[role]}>
-        {labels[role]}
-      </Badge>
-    );
+    switch (role) {
+      case "admin":
+        return <Badge className="bg-red-500 hover:bg-red-600">Admin</Badge>;
+      case "supervisor":
+        return <Badge className="bg-purple-500 hover:bg-purple-600">Supervisor</Badge>;
+      case "store_keeper":
+        return <Badge className="bg-blue-500 hover:bg-blue-600">Store Keeper</Badge>;
+      case "sales_warehouse":
+        return <Badge className="bg-green-500 hover:bg-green-600">Sales/Warehouse</Badge>;
+      default:
+        return <Badge variant="secondary">Worker</Badge>;
+    }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-slate-600 dark:text-slate-400">Loading users...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <>
       <SEO
         title="User Management - Josm Electrical"
-        description="Manage user accounts and permissions"
+        description="Manage system users and roles"
       />
       <DashboardLayout>
         <div className="space-y-6">
@@ -169,231 +190,56 @@ export default function UsersPage() {
             <div>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">User Management</h1>
               <p className="text-slate-600 dark:text-slate-400 mt-1">
-                Manage system users and their roles
+                Create and manage user accounts
               </p>
             </div>
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700">
-                  <Plus className="mr-2 h-4 w-4" />
+                  <UserPlus className="mr-2 h-4 w-4" />
                   Add User
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add New User</DialogTitle>
-                  <DialogDescription>Create a new user account</DialogDescription>
+                  <DialogDescription>Create a new account for an employee</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name">Full Name *</Label>
                     <Input
                       id="name"
-                      placeholder="John Doe"
+                      placeholder="e.g., John Doe"
                       value={newUser.name}
                       onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email Address *</Label>
                     <Input
                       id="email"
                       type="email"
-                      placeholder="john@josm.com"
+                      placeholder="e.g., john@josm.com"
                       value={newUser.email}
                       onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">Password *</Label>
                     <Input
                       id="password"
                       type="password"
-                      placeholder="At least 6 characters"
+                      placeholder="Min. 6 characters"
                       value={newUser.password}
                       onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Role</Label>
-                    <Select value={newUser.role} onValueChange={(val) => setNewUser({ ...newUser, role: val as UserRole })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="worker">Worker</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="store_keeper">Store Keeper</SelectItem>
-                        <SelectItem value="sales_warehouse">Sales/Warehouse</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleAddUser} className="w-full">
-                    Create User
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Total Users
-                </CardTitle>
-                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{users.length}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Admins
-                </CardTitle>
-                <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {users.filter(u => u.role === "admin").length}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Store Keepers
-                </CardTitle>
-                <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {users.filter(u => u.role === "store_keeper").length}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Workers
-                </CardTitle>
-                <Users className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-slate-600 dark:text-slate-400">
-                  {users.filter(u => u.role === "worker").length}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>Manage user accounts and permissions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{getRoleBadge(user.role)}</TableCell>
-                        <TableCell className="text-sm">
-                          {new Date(user.createdAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDeleteUser(user.id)}
-                              disabled={user.id === currentUser?.id}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Edit User Dialog */}
-          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Edit User</DialogTitle>
-                <DialogDescription>Update user information</DialogDescription>
-              </DialogHeader>
-              {selectedUser && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-name">Full Name</Label>
-                    <Input
-                      id="edit-name"
-                      value={selectedUser.name}
-                      onChange={(e) => setSelectedUser({ ...selectedUser, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-email">Email</Label>
-                    <Input
-                      id="edit-email"
-                      type="email"
-                      value={selectedUser.email}
-                      onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Role</Label>
+                    <Label htmlFor="role">Role *</Label>
                     <Select
-                      value={selectedUser.role}
-                      onValueChange={(val) => setSelectedUser({ ...selectedUser, role: val as UserRole })}
+                      value={newUser.role}
+                      onValueChange={(v: UserRole) => setNewUser({ ...newUser, role: v })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -407,13 +253,144 @@ export default function UsersPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button onClick={handleEditUser} className="w-full">
-                    Save Changes
+                  <Button onClick={handleAddUser} className="w-full">
+                    Create Account
                   </Button>
                 </div>
-              )}
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Total Users
+                </CardTitle>
+                <Users className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">{users.length}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Workers
+                </CardTitle>
+                <UserIcon className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {users.filter(u => u.role === "worker").length}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Admin/Supervisors
+                </CardTitle>
+                <Shield className="h-4 w-4 text-purple-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600">
+                  {users.filter(u => ["admin", "supervisor"].includes(u.role)).length}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search users..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Roles" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="worker">Worker</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                    <SelectItem value="store_keeper">Store Keeper</SelectItem>
+                    <SelectItem value="sales_warehouse">Sales/Warehouse</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Users List</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User Info</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Created At</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-slate-500">
+                          No users found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredUsers.map((u) => (
+                        <TableRow key={u.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium text-slate-900 dark:text-white">{u.name}</div>
+                              <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center">
+                                <Mail className="h-3 w-3 mr-1" />
+                                {u.email}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getRoleBadge(u.role)}</TableCell>
+                          <TableCell className="text-slate-500 text-sm">
+                            {new Date(u.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {u.id !== user?.id && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                onClick={() => handleDeleteUser(u.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </DashboardLayout>
     </>

@@ -1,11 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { Material, MaterialTransaction } from "@/types";
+import { Material, MaterialTransaction, MaterialRequest } from "@/types";
 
 type MaterialRow = Database["public"]["Tables"]["materials"]["Row"];
 type MaterialInsert = Database["public"]["Tables"]["materials"]["Insert"];
+type MaterialUpdate = Database["public"]["Tables"]["materials"]["Update"];
 type MaterialTransactionRow = Database["public"]["Tables"]["material_transactions"]["Row"];
 type MaterialTransactionInsert = Database["public"]["Tables"]["material_transactions"]["Insert"];
+type MaterialRequestRow = Database["public"]["Tables"]["material_requests"]["Row"];
+type MaterialRequestInsert = Database["public"]["Tables"]["material_requests"]["Insert"];
 
 export const materialService = {
   // Get all materials
@@ -110,6 +113,80 @@ export const materialService = {
     return this.mapToTransaction(data);
   },
 
+  // Get all requests
+  async getAllRequests(): Promise<MaterialRequest[]> {
+    const { data, error } = await supabase
+      .from("material_requests")
+      .select("*")
+      .order("request_date", { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(this.mapToRequest);
+  },
+
+  // Create request
+  async createRequest(request: Omit<MaterialRequest, "id">): Promise<MaterialRequest> {
+    const insertData: MaterialRequestInsert = {
+      material_id: request.materialId,
+      material_name: request.materialName,
+      quantity: request.quantity,
+      requested_by: request.requestedBy,
+      requested_by_name: request.requestedByName,
+      job_card_number: request.jobCardNumber,
+      // Default values for required fields not in input
+      board_name: "",
+      board_color: "",
+      recipient_name: "",
+      status: request.status,
+      request_date: request.requestDate,
+      notes: request.notes
+    };
+
+    const { data, error } = await supabase
+      .from("material_requests")
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.mapToRequest(data);
+  },
+
+  // Update request status
+  async updateRequestStatus(
+    id: string,
+    status: "approved" | "rejected",
+    approverId: string,
+    approverName: string,
+    notes?: string
+  ): Promise<MaterialRequest> {
+    const updates: any = {
+      status,
+      approved_by: approverId,
+      approved_by_name: approverName,
+      approval_date: new Date().toISOString()
+    };
+    
+    if (notes) updates.notes = notes;
+
+    const { data, error } = await supabase
+      .from("material_requests")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // If approved, verify stock and create transaction automatically
+    if (status === "approved" && data) {
+      const request = this.mapToRequest(data);
+      // Logic to deduct stock could go here, or be handled separately by the approver
+    }
+
+    return this.mapToRequest(data);
+  },
+
   // Get low stock
   async getLowStockMaterials(): Promise<Material[]> {
     const all = await this.getAllMaterials();
@@ -132,6 +209,35 @@ export const materialService = {
         await this.createMaterial(material);
       }
     }
+  },
+
+  // Receive material (increase quantity and record transaction)
+  async receiveMaterial(
+    materialId: string,
+    quantity: number,
+    userId: string,
+    userName: string
+  ): Promise<Material> {
+    // Get current material
+    const material = await this.getMaterialById(materialId);
+    if (!material) throw new Error("Material not found");
+
+    // Update quantity
+    const newQuantity = material.quantity + quantity;
+    const updated = await this.updateQuantity(materialId, newQuantity);
+
+    // Create transaction
+    await this.createTransaction({
+      materialId: materialId,
+      materialName: material.name,
+      type: "receive",
+      quantity: quantity,
+      userId: userId,
+      userName: userName,
+      date: new Date().toISOString()
+    });
+
+    return updated;
   },
 
   // Mappers
@@ -162,6 +268,25 @@ export const materialService = {
       boardColor: row.board_color || undefined,
       recipientName: row.recipient_name || undefined,
       date: row.date || row.created_at || new Date().toISOString(),
+      notes: row.notes || undefined
+    };
+  },
+
+  // Helper mapping
+  mapToRequest(row: MaterialRequestRow): MaterialRequest {
+    return {
+      id: row.id,
+      materialId: row.material_id,
+      materialName: row.material_name,
+      quantity: row.quantity,
+      requestedBy: row.requested_by,
+      requestedByName: row.requested_by_name,
+      jobCardNumber: row.job_card_number,
+      status: row.status as "pending" | "approved" | "rejected",
+      requestDate: row.request_date,
+      approvedBy: row.approved_by || undefined,
+      approvedByName: row.approved_by_name || undefined,
+      approvalDate: row.approval_date || undefined,
       notes: row.notes || undefined
     };
   }

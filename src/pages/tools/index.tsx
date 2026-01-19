@@ -7,19 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SEO } from "@/components/SEO";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Wrench,
   Plus,
   Search,
+  LogOut,
+  LogIn,
   AlertTriangle,
-  UserCheck,
-  Hammer,
   Filter
 } from "lucide-react";
-import { Tool, ToolTransaction } from "@/types";
-import { getFromStorage, saveToStorage, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { Tool } from "@/types";
 import { hasPermission } from "@/lib/mockAuth";
+import { toolService } from "@/services/toolService";
 import {
   Dialog,
   DialogContent,
@@ -59,8 +58,10 @@ export default function ToolsPage() {
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [damageDialogOpen, setDamageDialogOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
-  const [workerName, setWorkerName] = useState("");
-  const [notes, setNotes] = useState("");
+  const [checkoutName, setCheckoutName] = useState("");
+  const [returnNotes, setReturnNotes] = useState("");
+  const [damageNotes, setDamageNotes] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const [newTool, setNewTool] = useState({
     name: "",
@@ -79,10 +80,22 @@ export default function ToolsPage() {
       return;
     }
 
-    const storedTools = getFromStorage<Tool>(STORAGE_KEYS.TOOLS);
-    setTools(storedTools);
-    setFilteredTools(storedTools);
+    loadTools();
   }, [isAuthenticated, user, router]);
+
+  const loadTools = async () => {
+    try {
+      setLoading(true);
+      const data = await toolService.getAllTools();
+      setTools(data);
+      setFilteredTools(data);
+    } catch (error) {
+      console.error("Failed to load tools:", error);
+      alert("Failed to load tools");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let filtered = tools;
@@ -90,8 +103,8 @@ export default function ToolsPage() {
     if (searchTerm) {
       filtered = filtered.filter(t =>
         t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (t.checkedOutTo && t.checkedOutTo.toLowerCase().includes(searchTerm.toLowerCase()))
+        (t.code && t.code.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        t.category.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -106,156 +119,118 @@ export default function ToolsPage() {
     setFilteredTools(filtered);
   }, [searchTerm, statusFilter, categoryFilter, tools]);
 
-  const categories = Array.from(new Set(tools.map(t => t.category))).sort();
-  const availableCount = tools.filter(t => t.status === "available").length;
-  const checkedOutCount = tools.filter(t => t.status === "checked_out").length;
-  const damagedCount = tools.filter(t => t.status === "damaged").length;
+  const categories = Array.from(new Set(tools.map(t => t.category)));
+  const availableTools = tools.filter(t => t.status === "available");
+  const checkedOutTools = tools.filter(t => t.status === "checked_out");
+  const damagedTools = tools.filter(t => t.isDamaged);
 
-  const handleAddTool = () => {
-    if (!newTool.name || !newTool.code || !newTool.category) {
+  const handleAddTool = async () => {
+    if (!newTool.name || !newTool.category) {
       alert("Please fill in all required fields");
       return;
     }
 
-    const tool: Tool = {
-      id: generateId(),
-      name: newTool.name,
-      code: newTool.code,
-      status: "available",
-      category: newTool.category,
-      isDamaged: false
-    };
+    try {
+      await toolService.createTool({
+        name: newTool.name,
+        code: newTool.code || undefined,
+        category: newTool.category,
+        status: "available",
+        isDamaged: false
+      });
 
-    const updatedTools = [...tools, tool];
-    setTools(updatedTools);
-    saveToStorage(STORAGE_KEYS.TOOLS, updatedTools);
-    
-    setNewTool({ name: "", code: "", category: "" });
-    setAddDialogOpen(false);
+      await loadTools();
+      setNewTool({ name: "", code: "", category: "" });
+      setAddDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add tool:", error);
+      alert("Failed to add tool");
+    }
   };
 
-  const handleCheckout = () => {
-    if (!selectedTool || !workerName) {
+  const handleCheckout = async () => {
+    if (!selectedTool || !checkoutName.trim()) {
       alert("Please enter worker name");
       return;
     }
 
-    const updatedTools = tools.map(t => {
-      if (t.id === selectedTool.id) {
-        return {
-          ...t,
-          status: "checked_out" as const,
-          checkedOutBy: user?.id,
-          checkedOutTo: workerName,
-          checkedOutDate: new Date().toISOString()
-        };
-      }
-      return t;
-    });
+    try {
+      await toolService.checkoutTool(
+        selectedTool.id,
+        checkoutName.trim(),
+        user?.id || "",
+        user?.name || ""
+      );
 
-    setTools(updatedTools);
-    saveToStorage(STORAGE_KEYS.TOOLS, updatedTools);
-
-    const transactions = getFromStorage<ToolTransaction>(STORAGE_KEYS.TOOL_TRANSACTIONS);
-    transactions.push({
-      id: generateId(),
-      toolId: selectedTool.id,
-      toolName: `${selectedTool.name} (${selectedTool.code})`,
-      type: "checkout",
-      userId: user?.id || "",
-      userName: workerName,
-      date: new Date().toISOString(),
-      notes: notes || undefined
-    });
-    saveToStorage(STORAGE_KEYS.TOOL_TRANSACTIONS, transactions);
-
-    setWorkerName("");
-    setNotes("");
-    setSelectedTool(null);
-    setCheckoutDialogOpen(false);
+      await loadTools();
+      setCheckoutName("");
+      setSelectedTool(null);
+      setCheckoutDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to checkout tool:", error);
+      alert("Failed to checkout tool");
+    }
   };
 
-  const handleReturn = () => {
+  const handleReturn = async () => {
     if (!selectedTool) return;
 
-    const updatedTools = tools.map(t => {
-      if (t.id === selectedTool.id) {
-        return {
-          ...t,
-          status: "available" as const,
-          checkedOutBy: undefined,
-          checkedOutTo: undefined,
-          checkedOutDate: undefined
-        };
-      }
-      return t;
-    });
+    try {
+      await toolService.returnTool(
+        selectedTool.id,
+        user?.id || "",
+        user?.name || "",
+        returnNotes
+      );
 
-    setTools(updatedTools);
-    saveToStorage(STORAGE_KEYS.TOOLS, updatedTools);
-
-    const transactions = getFromStorage<ToolTransaction>(STORAGE_KEYS.TOOL_TRANSACTIONS);
-    transactions.push({
-      id: generateId(),
-      toolId: selectedTool.id,
-      toolName: `${selectedTool.name} (${selectedTool.code})`,
-      type: "return",
-      userId: selectedTool.checkedOutBy || "",
-      userName: selectedTool.checkedOutTo || "",
-      date: new Date().toISOString(),
-      notes: notes || undefined
-    });
-    saveToStorage(STORAGE_KEYS.TOOL_TRANSACTIONS, transactions);
-
-    setNotes("");
-    setSelectedTool(null);
-    setReturnDialogOpen(false);
+      await loadTools();
+      setReturnNotes("");
+      setSelectedTool(null);
+      setReturnDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to return tool:", error);
+      alert("Failed to return tool");
+    }
   };
 
-  const handleMarkDamaged = () => {
+  const handleMarkDamaged = async () => {
     if (!selectedTool) return;
 
-    const updatedTools = tools.map(t => {
-      if (t.id === selectedTool.id) {
-        return {
-          ...t,
-          status: "damaged" as const,
-          checkedOutBy: undefined,
-          checkedOutTo: undefined,
-          checkedOutDate: undefined
-        };
-      }
-      return t;
-    });
+    try {
+      await toolService.markAsDamaged(
+        selectedTool.id,
+        user?.id || "",
+        user?.name || "",
+        damageNotes
+      );
 
-    setTools(updatedTools);
-    saveToStorage(STORAGE_KEYS.TOOLS, updatedTools);
-
-    const transactions = getFromStorage<ToolTransaction>(STORAGE_KEYS.TOOL_TRANSACTIONS);
-    transactions.push({
-      id: generateId(),
-      toolId: selectedTool.id,
-      toolName: `${selectedTool.name} (${selectedTool.code})`,
-      type: "damage",
-      userId: user?.id || "",
-      userName: user?.name || "",
-      date: new Date().toISOString(),
-      notes: notes || "Tool marked as damaged"
-    });
-    saveToStorage(STORAGE_KEYS.TOOL_TRANSACTIONS, transactions);
-
-    setNotes("");
-    setSelectedTool(null);
-    setDamageDialogOpen(false);
+      await loadTools();
+      setDamageNotes("");
+      setSelectedTool(null);
+      setDamageDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to mark tool as damaged:", error);
+      alert("Failed to mark tool as damaged");
+    }
   };
 
   const canManage = hasPermission(user, "manage_tools");
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-slate-600 dark:text-slate-400">Loading tools...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <>
       <SEO
         title="Tools & Equipment - Josm Electrical"
-        description="Manage tools and equipment checkout system"
+        description="Manage tools and equipment inventory"
       />
       <DashboardLayout>
         <div className="space-y-6">
@@ -263,13 +238,13 @@ export default function ToolsPage() {
             <div>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Tools & Equipment</h1>
               <p className="text-slate-600 dark:text-slate-400 mt-1">
-                Track tool checkout, returns, and maintenance
+                Track tool checkouts and returns
               </p>
             </div>
             {canManage && (
               <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700">
+                  <Button className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700">
                     <Plus className="mr-2 h-4 w-4" />
                     Add Tool
                   </Button>
@@ -281,28 +256,28 @@ export default function ToolsPage() {
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="toolName">Tool Name *</Label>
+                      <Label htmlFor="name">Tool Name *</Label>
                       <Input
-                        id="toolName"
+                        id="name"
                         placeholder="e.g., Cordless drill emtop"
                         value={newTool.name}
                         onChange={(e) => setNewTool({ ...newTool, name: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="toolCode">Code/Number *</Label>
+                      <Label htmlFor="code">Code/Number</Label>
                       <Input
-                        id="toolCode"
-                        placeholder="e.g., 1, 2, m1, x1"
+                        id="code"
+                        placeholder="e.g., 1, 2, M1"
                         value={newTool.code}
                         onChange={(e) => setNewTool({ ...newTool, code: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="toolCategory">Category *</Label>
+                      <Label htmlFor="category">Category *</Label>
                       <Input
-                        id="toolCategory"
-                        placeholder="e.g., Drills, Spanners, Grinders"
+                        id="category"
+                        placeholder="e.g., Drills, Spanners, Hammers"
                         value={newTool.category}
                         onChange={(e) => setNewTool({ ...newTool, category: e.target.value })}
                       />
@@ -316,64 +291,43 @@ export default function ToolsPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Total Tools
+                  Available Tools
                 </CardTitle>
-                <Hammer className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                <Wrench className="h-4 w-4 text-green-600 dark:text-green-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white">{tools.length}</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">{availableTools.length}</div>
               </CardContent>
             </Card>
             
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Available
-                </CardTitle>
-                <Wrench className="h-4 w-4 text-green-600 dark:text-green-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{availableCount}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
                   Checked Out
                 </CardTitle>
-                <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <LogOut className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{checkedOutCount}</div>
+                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{checkedOutTools.length}</div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Damaged
+                  Damaged Tools
                 </CardTitle>
                 <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{damagedCount}</div>
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{damagedTools.length}</div>
               </CardContent>
             </Card>
           </div>
-
-          {damagedCount > 0 && (
-            <Alert className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900">
-              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-              <AlertDescription className="text-red-800 dark:text-red-300">
-                <strong>{damagedCount} tools</strong> are marked as damaged and need attention
-              </AlertDescription>
-            </Alert>
-          )}
 
           <Card>
             <CardContent className="pt-6">
@@ -417,7 +371,7 @@ export default function ToolsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Tools List</CardTitle>
+              <CardTitle>Tool List</CardTitle>
               <CardDescription>
                 {filteredTools.length} tools found
               </CardDescription>
@@ -431,49 +385,50 @@ export default function ToolsPage() {
                       <TableHead>Code</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Checked Out By</TableHead>
-                      <TableHead>Checked Out At</TableHead>
+                      <TableHead>Checked Out To</TableHead>
                       {canManage && <TableHead className="text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredTools.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={canManage ? 7 : 6} className="text-center py-8 text-slate-500">
+                        <TableCell colSpan={canManage ? 6 : 5} className="text-center py-8 text-slate-500">
                           No tools found
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredTools.map((tool) => (
-                        <TableRow key={tool.id} className={tool.status === "checked_out" ? "bg-blue-50 dark:bg-blue-950/20" : ""}>
-                          <TableCell className="font-medium">{tool.name}</TableCell>
-                          <TableCell>{tool.code}</TableCell>
+                        <TableRow key={tool.id} className={tool.isDamaged ? "bg-red-50 dark:bg-red-950/20" : ""}>
+                          <TableCell className="font-medium">
+                            {tool.name}
+                            {tool.isDamaged && (
+                              <Badge variant="destructive" className="ml-2">Damaged</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>{tool.code || "-"}</TableCell>
                           <TableCell>{tool.category}</TableCell>
                           <TableCell>
                             {tool.status === "available" ? (
                               <Badge className="bg-green-500 hover:bg-green-600">Available</Badge>
                             ) : tool.status === "checked_out" ? (
-                              <Badge className="bg-blue-500 hover:bg-blue-600">Checked Out</Badge>
+                              <Badge className="bg-orange-500 hover:bg-orange-600">Checked Out</Badge>
                             ) : (
                               <Badge variant="destructive">Damaged</Badge>
                             )}
                           </TableCell>
                           <TableCell>
                             {tool.checkedOutTo ? (
-                              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                              <span className="font-semibold text-orange-600 dark:text-orange-400">
                                 {tool.checkedOutTo}
                               </span>
                             ) : (
                               "-"
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-slate-600 dark:text-slate-400">
-                            {tool.checkedOutDate ? new Date(tool.checkedOutDate).toLocaleString() : "-"}
-                          </TableCell>
                           {canManage && (
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                {tool.status === "available" && (
+                                {tool.status === "available" && !tool.isDamaged && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -482,10 +437,11 @@ export default function ToolsPage() {
                                       setCheckoutDialogOpen(true);
                                     }}
                                   >
+                                    <LogOut className="h-3 w-3 mr-1" />
                                     Checkout
                                   </Button>
                                 )}
-                                {tool.status === "checked_out" && (
+                                {tool.status === "checked_out" && !tool.isDamaged && (
                                   <>
                                     <Button
                                       size="sm"
@@ -495,6 +451,7 @@ export default function ToolsPage() {
                                         setReturnDialogOpen(true);
                                       }}
                                     >
+                                      <LogIn className="h-3 w-3 mr-1" />
                                       Return
                                     </Button>
                                     <Button
@@ -505,14 +462,10 @@ export default function ToolsPage() {
                                         setDamageDialogOpen(true);
                                       }}
                                     >
-                                      Damage
+                                      <AlertTriangle className="h-3 w-3 mr-1" />
+                                      Damaged
                                     </Button>
                                   </>
-                                )}
-                                {tool.status === "damaged" && (
-                                  <Badge variant="outline" className="text-red-600 border-red-600">
-                                    Needs Repair
-                                  </Badge>
                                 )}
                               </div>
                             </TableCell>
@@ -531,7 +484,7 @@ export default function ToolsPage() {
               <DialogHeader>
                 <DialogTitle>Checkout Tool</DialogTitle>
                 <DialogDescription>
-                  {selectedTool?.name} ({selectedTool?.code})
+                  {selectedTool?.name} {selectedTool?.code && `(${selectedTool.code})`}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -540,21 +493,12 @@ export default function ToolsPage() {
                   <Input
                     id="workerName"
                     placeholder="Enter worker name"
-                    value={workerName}
-                    onChange={(e) => setWorkerName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="checkoutNotes">Notes (Optional)</Label>
-                  <Textarea
-                    id="checkoutNotes"
-                    placeholder="Additional notes..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    value={checkoutName}
+                    onChange={(e) => setCheckoutName(e.target.value)}
                   />
                 </div>
                 <Button onClick={handleCheckout} className="w-full">
-                  Checkout Tool
+                  Confirm Checkout
                 </Button>
               </div>
             </DialogContent>
@@ -565,7 +509,11 @@ export default function ToolsPage() {
               <DialogHeader>
                 <DialogTitle>Return Tool</DialogTitle>
                 <DialogDescription>
-                  {selectedTool?.name} ({selectedTool?.code}) - Currently with {selectedTool?.checkedOutTo}
+                  {selectedTool?.name} {selectedTool?.code && `(${selectedTool.code})`}
+                  <br />
+                  <span className="text-orange-600 dark:text-orange-400 font-semibold">
+                    Checked out to: {selectedTool?.checkedOutTo}
+                  </span>
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -573,13 +521,13 @@ export default function ToolsPage() {
                   <Label htmlFor="returnNotes">Notes (Optional)</Label>
                   <Textarea
                     id="returnNotes"
-                    placeholder="Condition, issues, etc..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Any notes about the tool condition..."
+                    value={returnNotes}
+                    onChange={(e) => setReturnNotes(e.target.value)}
                   />
                 </div>
                 <Button onClick={handleReturn} className="w-full">
-                  Return Tool
+                  Confirm Return
                 </Button>
               </div>
             </DialogContent>
@@ -590,23 +538,17 @@ export default function ToolsPage() {
               <DialogHeader>
                 <DialogTitle>Mark Tool as Damaged</DialogTitle>
                 <DialogDescription>
-                  {selectedTool?.name} ({selectedTool?.code})
+                  {selectedTool?.name} {selectedTool?.code && `(${selectedTool.code})`}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <Alert className="border-red-200 bg-red-50 dark:bg-red-950/20">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                  <AlertDescription className="text-red-800 dark:text-red-300">
-                    This tool will be marked as damaged and unavailable for checkout
-                  </AlertDescription>
-                </Alert>
                 <div className="space-y-2">
                   <Label htmlFor="damageNotes">Damage Description *</Label>
                   <Textarea
                     id="damageNotes"
                     placeholder="Describe the damage..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    value={damageNotes}
+                    onChange={(e) => setDamageNotes(e.target.value)}
                   />
                 </div>
                 <Button onClick={handleMarkDamaged} variant="destructive" className="w-full">

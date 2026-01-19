@@ -26,7 +26,6 @@ import {
   ToolTransaction,
   BoardTransaction
 } from "@/types";
-import { getFromStorage, STORAGE_KEYS } from "@/lib/storage";
 import { hasPermission } from "@/lib/mockAuth";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,12 +44,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { materialService } from "@/services/materialService";
+import { toolService } from "@/services/toolService";
+import { jobService } from "@/services/jobService";
+import { boardService } from "@/services/boardService";
+import { customerGoodsService } from "@/services/customerGoodsService";
 
 export default function ReportsPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [loading, setLoading] = useState(true);
+
   const [materials, setMaterials] = useState<Material[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [jobs, setJobs] = useState<JobCard[]>([]);
@@ -71,16 +77,49 @@ export default function ReportsPage() {
       return;
     }
 
-    // Load all data
-    setMaterials(getFromStorage<Material>(STORAGE_KEYS.MATERIALS));
-    setTools(getFromStorage<Tool>(STORAGE_KEYS.TOOLS));
-    setJobs(getFromStorage<JobCard>(STORAGE_KEYS.JOBS));
-    setBoards(getFromStorage<Board>(STORAGE_KEYS.BOARDS));
-    setCustomerGoods(getFromStorage<CustomerGoods>(STORAGE_KEYS.CUSTOMER_GOODS));
-    setMaterialTransactions(getFromStorage<MaterialTransaction>(STORAGE_KEYS.MATERIAL_TRANSACTIONS));
-    setToolTransactions(getFromStorage<ToolTransaction>(STORAGE_KEYS.TOOL_TRANSACTIONS));
-    setBoardTransactions(getFromStorage<BoardTransaction>(STORAGE_KEYS.BOARD_TRANSACTIONS));
+    loadAllData();
   }, [isAuthenticated, user, router]);
+
+  const loadAllData = async () => {
+    try {
+      setLoading(true);
+      
+      const [
+        materialsData,
+        toolsData,
+        jobsData,
+        boardsData,
+        goodsData,
+        matTransData,
+        toolTransData,
+        boardTransData
+      ] = await Promise.all([
+        materialService.getAllMaterials(),
+        toolService.getAllTools(),
+        jobService.getAllJobs(),
+        boardService.getAllBoards(),
+        customerGoodsService.getAllCustomerGoods(),
+        materialService.getAllTransactions(),
+        toolService.getAllTransactions(),
+        boardService.getAllTransactions()
+      ]);
+
+      setMaterials(materialsData);
+      setTools(toolsData);
+      setJobs(jobsData);
+      setBoards(boardsData);
+      setCustomerGoods(goodsData);
+      setMaterialTransactions(matTransData);
+      setToolTransactions(toolTransData);
+      setBoardTransactions(boardTransData);
+
+    } catch (error) {
+      console.error("Failed to load report data:", error);
+      // alert("Failed to load some report data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filterByDate = <T extends { date?: string; createdAt?: string; receivedDate?: string }>(items: T[]) => {
     if (!startDate && !endDate) return items;
@@ -92,6 +131,10 @@ export default function ReportsPage() {
       const date = new Date(itemDate);
       const start = startDate ? new Date(startDate) : null;
       const end = endDate ? new Date(endDate) : null;
+      
+      // Reset times for accurate date comparison
+      if (start) start.setHours(0, 0, 0, 0);
+      if (end) end.setHours(23, 59, 59, 999);
       
       if (start && date < start) return false;
       if (end && date > end) return false;
@@ -105,11 +148,20 @@ export default function ReportsPage() {
       return;
     }
 
-    const headers = Object.keys(data[0]).join(",");
-    const rows = data.map(row => 
-      Object.values(row).map(val => 
-        typeof val === "string" && val.includes(",") ? `"${val}"` : val
-      ).join(",")
+    // Exclude internal fields or nested objects if necessary
+    const cleanedData = data.map(row => {
+      const cleanRow: any = { ...row };
+      // Flatten or stringify objects if needed, for now basic values work
+      return cleanRow;
+    });
+
+    const headers = Object.keys(cleanedData[0]).join(",");
+    const rows = cleanedData.map(row => 
+      Object.values(row).map(val => {
+        if (val === null || val === undefined) return "";
+        const strVal = String(val);
+        return strVal.includes(",") ? `"${strVal}"` : strVal;
+      }).join(",")
     );
     
     const csv = [headers, ...rows].join("\n");
@@ -131,6 +183,16 @@ export default function ReportsPage() {
   const filteredBoardTransactions = filterByDate(boardTransactions);
   const filteredJobs = filterByDate(jobs);
   const filteredCustomerGoods = filterByDate(customerGoods);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-slate-600 dark:text-slate-400">Loading reports...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <>
@@ -233,18 +295,26 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {lowStockMaterials.map(m => (
-                            <TableRow key={m.id}>
-                              <TableCell className="font-medium">
-                                {m.name} {m.variant && `(${m.variant})`}
+                          {lowStockMaterials.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-slate-500">
+                                No low stock alerts
                               </TableCell>
-                              <TableCell>{m.category}</TableCell>
-                              <TableCell className="font-bold text-orange-600">
-                                {m.quantity} {m.unit}
-                              </TableCell>
-                              <TableCell>{m.minThreshold} {m.unit}</TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            lowStockMaterials.map(m => (
+                              <TableRow key={m.id}>
+                                <TableCell className="font-medium">
+                                  {m.name} {m.variant && `(${m.variant})`}
+                                </TableCell>
+                                <TableCell>{m.category}</TableCell>
+                                <TableCell className="font-bold text-orange-600">
+                                  {m.quantity} {m.unit}
+                                </TableCell>
+                                <TableCell>{m.minThreshold} {m.unit}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -277,26 +347,34 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredMaterialTransactions.slice(0, 10).map(t => (
-                            <TableRow key={t.id}>
-                              <TableCell className="text-sm">
-                                {new Date(t.date).toLocaleDateString()}
+                          {filteredMaterialTransactions.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-slate-500">
+                                No transactions found for this period
                               </TableCell>
-                              <TableCell>{t.materialName}</TableCell>
-                              <TableCell>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  t.type === "issue" ? "bg-red-100 text-red-700" :
-                                  t.type === "receive" ? "bg-green-100 text-green-700" :
-                                  "bg-blue-100 text-blue-700"
-                                }`}>
-                                  {t.type}
-                                </span>
-                              </TableCell>
-                              <TableCell>{t.quantity}</TableCell>
-                              <TableCell>{t.jobCardNumber || "-"}</TableCell>
-                              <TableCell className="text-sm">{t.userName}</TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            filteredMaterialTransactions.slice(0, 50).map(t => (
+                              <TableRow key={t.id}>
+                                <TableCell className="text-sm">
+                                  {new Date(t.date).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell>{t.materialName}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    t.type === "issue" ? "bg-red-100 text-red-700" :
+                                    t.type === "receive" ? "bg-green-100 text-green-700" :
+                                    "bg-blue-100 text-blue-700"
+                                  }`}>
+                                    {t.type}
+                                  </span>
+                                </TableCell>
+                                <TableCell>{t.quantity}</TableCell>
+                                <TableCell>{t.jobCardNumber || "-"}</TableCell>
+                                <TableCell className="text-sm">{t.userName}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -335,13 +413,21 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {damagedTools.map(t => (
-                            <TableRow key={t.id}>
-                              <TableCell className="font-medium">{t.name}</TableCell>
-                              <TableCell>{t.code}</TableCell>
-                              <TableCell>{t.category}</TableCell>
+                          {damagedTools.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-center text-slate-500">
+                                No damaged tools
+                              </TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            damagedTools.map(t => (
+                              <TableRow key={t.id}>
+                                <TableCell className="font-medium">{t.name}</TableCell>
+                                <TableCell>{t.code}</TableCell>
+                                <TableCell>{t.category}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -371,25 +457,33 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredToolTransactions.slice(0, 10).map(t => (
-                            <TableRow key={t.id}>
-                              <TableCell className="text-sm">
-                                {new Date(t.date).toLocaleDateString()}
+                          {filteredToolTransactions.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-slate-500">
+                                No transactions found for this period
                               </TableCell>
-                              <TableCell>{t.toolName}</TableCell>
-                              <TableCell>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  t.type === "checkout" ? "bg-blue-100 text-blue-700" :
-                                  t.type === "return" ? "bg-green-100 text-green-700" :
-                                  "bg-red-100 text-red-700"
-                                }`}>
-                                  {t.type}
-                                </span>
-                              </TableCell>
-                              <TableCell>{t.userName}</TableCell>
-                              <TableCell className="text-sm">{t.notes || "-"}</TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            filteredToolTransactions.slice(0, 50).map(t => (
+                              <TableRow key={t.id}>
+                                <TableCell className="text-sm">
+                                  {new Date(t.date).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell>{t.toolName}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    t.type === "checkout" ? "bg-blue-100 text-blue-700" :
+                                    t.type === "return" ? "bg-green-100 text-green-700" :
+                                    "bg-red-100 text-red-700"
+                                  }`}>
+                                    {t.type}
+                                  </span>
+                                </TableCell>
+                                <TableCell>{t.userName}</TableCell>
+                                <TableCell className="text-sm">{t.notes || "-"}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -418,36 +512,44 @@ export default function ReportsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Job Card #</TableHead>
-                          <TableHead>Board Name</TableHead>
+                          <TableHead>Job Name</TableHead>
+                          <TableHead>Client</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Supervisor</TableHead>
-                          <TableHead>Materials Used</TableHead>
+                          <TableHead>Materials</TableHead>
                           <TableHead>Created</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredJobs.map(j => (
-                          <TableRow key={j.id}>
-                            <TableCell className="font-mono">{j.jobCardNumber}</TableCell>
-                            <TableCell className="font-medium">{j.boardName}</TableCell>
-                            <TableCell className="capitalize">{j.boardType}</TableCell>
-                            <TableCell>
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                j.status === "fabrication" ? "bg-orange-100 text-orange-700" :
-                                j.status === "assembling" ? "bg-blue-100 text-blue-700" :
-                                "bg-green-100 text-green-700"
-                              }`}>
-                                {j.status}
-                              </span>
-                            </TableCell>
-                            <TableCell>{j.supervisorName}</TableCell>
-                            <TableCell>{j.materialsUsed.length} items</TableCell>
-                            <TableCell className="text-sm">
-                              {new Date(j.createdAt).toLocaleDateString()}
+                        {filteredJobs.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-slate-500">
+                              No jobs found for this period
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          filteredJobs.map(j => (
+                            <TableRow key={j.id}>
+                              <TableCell className="font-mono">{j.jobCardNumber}</TableCell>
+                              <TableCell className="font-medium">{j.jobName}</TableCell>
+                              <TableCell>{j.clientName}</TableCell>
+                              <TableCell className="capitalize">{j.boardType}</TableCell>
+                              <TableCell>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  j.status === "fabrication" ? "bg-orange-100 text-orange-700" :
+                                  j.status === "assembling" ? "bg-blue-100 text-blue-700" :
+                                  "bg-green-100 text-green-700"
+                                }`}>
+                                  {j.status}
+                                </span>
+                              </TableCell>
+                              <TableCell>{j.materialsUsed?.length || 0} items</TableCell>
+                              <TableCell className="text-sm">
+                                {new Date(j.createdAt).toLocaleDateString()}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -483,20 +585,28 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {boards.map(b => (
-                            <TableRow key={b.id}>
-                              <TableCell className="font-medium">{b.type}</TableCell>
-                              <TableCell>{b.color}</TableCell>
-                              <TableCell className="font-bold">{b.quantity}</TableCell>
-                              <TableCell>
-                                {b.quantity <= b.minThreshold ? (
-                                  <span className="text-orange-600 font-semibold">Low Stock</span>
-                                ) : (
-                                  <span className="text-green-600">In Stock</span>
-                                )}
+                          {boards.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-slate-500">
+                                No boards in inventory
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            boards.map(b => (
+                              <TableRow key={b.id}>
+                                <TableCell className="font-medium">{b.type}</TableCell>
+                                <TableCell>{b.color}</TableCell>
+                                <TableCell className="font-bold">{b.quantity}</TableCell>
+                                <TableCell>
+                                  {b.quantity <= b.minThreshold ? (
+                                    <span className="text-orange-600 font-semibold">Low Stock</span>
+                                  ) : (
+                                    <span className="text-green-600">In Stock</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -527,25 +637,33 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredBoardTransactions.slice(0, 10).map(t => (
-                            <TableRow key={t.id}>
-                              <TableCell className="text-sm">
-                                {new Date(t.date).toLocaleDateString()}
+                          {filteredBoardTransactions.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-slate-500">
+                                No transactions found for this period
                               </TableCell>
-                              <TableCell>{t.boardName}</TableCell>
-                              <TableCell>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  t.type === "manufactured" ? "bg-green-100 text-green-700" :
-                                  "bg-blue-100 text-blue-700"
-                                }`}>
-                                  {t.type}
-                                </span>
-                              </TableCell>
-                              <TableCell>{t.quantity}</TableCell>
-                              <TableCell>{t.customerName || "-"}</TableCell>
-                              <TableCell className="text-sm">{t.userName}</TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            filteredBoardTransactions.slice(0, 50).map(t => (
+                              <TableRow key={t.id}>
+                                <TableCell className="text-sm">
+                                  {new Date(t.date).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell>{t.boardName}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    t.type === "manufactured" ? "bg-green-100 text-green-700" :
+                                    "bg-blue-100 text-blue-700"
+                                  }`}>
+                                    {t.type}
+                                  </span>
+                                </TableCell>
+                                <TableCell>{t.quantity}</TableCell>
+                                <TableCell>{t.customerName || "-"}</TableCell>
+                                <TableCell className="text-sm">{t.userName}</TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -582,26 +700,34 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredCustomerGoods.map(g => (
-                          <TableRow key={g.id}>
-                            <TableCell className="font-medium">{g.customerName}</TableCell>
-                            <TableCell className="max-w-xs truncate">{g.description}</TableCell>
-                            <TableCell>{g.quantity}</TableCell>
-                            <TableCell>
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                g.status === "received" ? "bg-blue-100 text-blue-700" :
-                                g.status === "processed" ? "bg-green-100 text-green-700" :
-                                "bg-purple-100 text-purple-700"
-                              }`}>
-                                {g.status}
-                              </span>
+                        {filteredCustomerGoods.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-slate-500">
+                              No customer goods found for this period
                             </TableCell>
-                            <TableCell className="text-sm">
-                              {new Date(g.receivedDate).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell className="text-sm">{g.receivedByName}</TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          filteredCustomerGoods.map(g => (
+                            <TableRow key={g.id}>
+                              <TableCell className="font-medium">{g.customerName}</TableCell>
+                              <TableCell className="max-w-xs truncate">{g.description}</TableCell>
+                              <TableCell>{g.quantity}</TableCell>
+                              <TableCell>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  g.status === "received" ? "bg-blue-100 text-blue-700" :
+                                  g.status === "processed" ? "bg-green-100 text-green-700" :
+                                  "bg-purple-100 text-purple-700"
+                                }`}>
+                                  {g.status}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {new Date(g.receivedDate).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="text-sm">{g.receivedByName}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>

@@ -167,21 +167,29 @@ export type Database = {
       }
       job_cards: {
         Row: {
+          assembling_by: string | null
+          assembling_by_name: string | null
           assembling_completed_at: string | null
           assembling_status: string | null
           board_color: string
           board_name: string
           board_type: string | null
+          client_name: string | null
           completed_at: string | null
           created_at: string | null
           created_by: string | null
           created_by_name: string | null
+          fabrication_by: string | null
+          fabrication_by_name: string | null
           fabrication_completed_at: string | null
           fabrication_status: string | null
           id: string
           job_card_number: string
+          job_name: string | null
           materials_used: Json | null
+          notes: string | null
           overall_status: string | null
+          priority: string | null
           recipient_name: string
           status: string | null
           supervisor_id: string | null
@@ -189,21 +197,29 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          assembling_by?: string | null
+          assembling_by_name?: string | null
           assembling_completed_at?: string | null
           assembling_status?: string | null
           board_color: string
           board_name: string
           board_type?: string | null
+          client_name?: string | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           created_by_name?: string | null
+          fabrication_by?: string | null
+          fabrication_by_name?: string | null
           fabrication_completed_at?: string | null
           fabrication_status?: string | null
           id?: string
           job_card_number: string
+          job_name?: string | null
           materials_used?: Json | null
+          notes?: string | null
           overall_status?: string | null
+          priority?: string | null
           recipient_name: string
           status?: string | null
           supervisor_id?: string | null
@@ -211,21 +227,29 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          assembling_by?: string | null
+          assembling_by_name?: string | null
           assembling_completed_at?: string | null
           assembling_status?: string | null
           board_color?: string
           board_name?: string
           board_type?: string | null
+          client_name?: string | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           created_by_name?: string | null
+          fabrication_by?: string | null
+          fabrication_by_name?: string | null
           fabrication_completed_at?: string | null
           fabrication_status?: string | null
           id?: string
           job_card_number?: string
+          job_name?: string | null
           materials_used?: Json | null
+          notes?: string | null
           overall_status?: string | null
+          priority?: string | null
           recipient_name?: string
           status?: string | null
           supervisor_id?: string | null
@@ -264,6 +288,7 @@ export type Database = {
           notes: string | null
           quantity: number
           recipient_name: string
+          request_date: string | null
           requested_by: string | null
           requested_by_name: string
           status: string
@@ -282,6 +307,7 @@ export type Database = {
           notes?: string | null
           quantity: number
           recipient_name: string
+          request_date?: string | null
           requested_by?: string | null
           requested_by_name: string
           status?: string
@@ -300,6 +326,7 @@ export type Database = {
           notes?: string | null
           quantity?: number
           recipient_name?: string
+          request_date?: string | null
           requested_by?: string | null
           requested_by_name?: string
           status?: string

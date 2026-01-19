@@ -16,13 +16,11 @@ import {
   TrendingUp,
   TrendingDown,
   Filter,
-  Download,
-  Upload
+  Download
 } from "lucide-react";
 import { Material } from "@/types";
-import { getFromStorage, saveToStorage, generateId, STORAGE_KEYS } from "@/lib/storage";
-import { initialMaterials } from "@/lib/initialMaterials";
 import { hasPermission } from "@/lib/mockAuth";
+import { materialService } from "@/services/materialService";
 import {
   Dialog,
   DialogContent,
@@ -55,20 +53,19 @@ export default function MaterialsPage() {
   const [filteredMaterials, setFilteredMaterials] = useState<Material[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [stockFilter, setStockFilter] = useState("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [receiveQuantity, setReceiveQuantity] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // New material form
   const [newMaterial, setNewMaterial] = useState({
-    category: "",
     name: "",
+    category: "",
     variant: "",
     quantity: "",
-    minThreshold: "",
-    unit: "pcs"
+    unit: "pcs",
+    minThreshold: "10"
   });
 
   useEffect(() => {
@@ -82,148 +79,118 @@ export default function MaterialsPage() {
       return;
     }
 
-    // Initialize materials from storage or use initial data
-    let storedMaterials = getFromStorage<Material>(STORAGE_KEYS.MATERIALS);
-    
-    if (storedMaterials.length === 0) {
-      // First time - initialize with your material list
-      storedMaterials = initialMaterials.map(m => ({
-        ...m,
-        id: generateId(),
-        lastUpdated: new Date().toISOString()
-      }));
-      saveToStorage(STORAGE_KEYS.MATERIALS, storedMaterials);
-    }
-    
-    setMaterials(storedMaterials);
-    setFilteredMaterials(storedMaterials);
+    loadMaterials();
   }, [isAuthenticated, user, router]);
+
+  const loadMaterials = async () => {
+    try {
+      setLoading(true);
+      const data = await materialService.getAllMaterials();
+      setMaterials(data);
+      setFilteredMaterials(data);
+    } catch (error) {
+      console.error("Failed to load materials:", error);
+      alert("Failed to load materials");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let filtered = materials;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(m =>
         m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (m.variant && m.variant.toLowerCase().includes(searchTerm.toLowerCase()))
+        (m.variant && m.variant.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        m.category.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Category filter
     if (categoryFilter !== "all") {
       filtered = filtered.filter(m => m.category === categoryFilter);
     }
 
-    // Stock filter
-    if (stockFilter === "low") {
-      filtered = filtered.filter(m => m.quantity <= m.minThreshold);
-    } else if (stockFilter === "out") {
-      filtered = filtered.filter(m => m.quantity === 0);
-    }
-
     setFilteredMaterials(filtered);
-  }, [searchTerm, categoryFilter, stockFilter, materials]);
+  }, [searchTerm, categoryFilter, materials]);
 
-  const categories = Array.from(new Set(materials.map(m => m.category))).sort();
-  const lowStockCount = materials.filter(m => m.quantity <= m.minThreshold).length;
-  const outOfStockCount = materials.filter(m => m.quantity === 0).length;
+  const categories = Array.from(new Set(materials.map(m => m.category)));
+  const totalItems = materials.reduce((sum, m) => sum + m.quantity, 0);
+  const lowStockItems = materials.filter(m => m.quantity <= m.minThreshold);
 
-  const handleAddMaterial = () => {
-    if (!newMaterial.category || !newMaterial.name || !newMaterial.quantity || !newMaterial.minThreshold) {
+  const handleAddMaterial = async () => {
+    if (!newMaterial.name || !newMaterial.category || !newMaterial.quantity) {
       alert("Please fill in all required fields");
       return;
     }
 
-    const material: Material = {
-      id: generateId(),
-      category: newMaterial.category,
-      name: newMaterial.name,
-      variant: newMaterial.variant || undefined,
-      quantity: parseFloat(newMaterial.quantity),
-      minThreshold: parseFloat(newMaterial.minThreshold),
-      unit: newMaterial.unit,
-      lastUpdated: new Date().toISOString()
-    };
+    try {
+      await materialService.createMaterial({
+        name: newMaterial.name,
+        category: newMaterial.category,
+        variant: newMaterial.variant || undefined,
+        quantity: parseInt(newMaterial.quantity),
+        unit: newMaterial.unit,
+        minThreshold: parseInt(newMaterial.minThreshold)
+      });
 
-    const updatedMaterials = [...materials, material];
-    setMaterials(updatedMaterials);
-    saveToStorage(STORAGE_KEYS.MATERIALS, updatedMaterials);
-    
-    setNewMaterial({
-      category: "",
-      name: "",
-      variant: "",
-      quantity: "",
-      minThreshold: "",
-      unit: "pcs"
-    });
-    setAddDialogOpen(false);
+      await loadMaterials();
+      setNewMaterial({ name: "", category: "", variant: "", quantity: "", unit: "pcs", minThreshold: "10" });
+      setAddDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add material:", error);
+      alert("Failed to add material");
+    }
   };
 
-  const handleReceiveMaterial = () => {
-    if (!selectedMaterial || !receiveQuantity) {
-      alert("Please enter a valid quantity");
-      return;
+  const handleReceiveMaterial = async () => {
+    if (!selectedMaterial || !receiveQuantity) return;
+
+    const quantity = parseInt(receiveQuantity);
+
+    try {
+      await materialService.receiveMaterial(
+        selectedMaterial.id,
+        quantity,
+        user?.id || "",
+        user?.name || ""
+      );
+
+      await loadMaterials();
+      setReceiveQuantity("");
+      setSelectedMaterial(null);
+      setReceiveDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to receive material:", error);
+      alert("Failed to receive material");
     }
-
-    const quantity = parseFloat(receiveQuantity);
-    if (quantity <= 0) {
-      alert("Quantity must be greater than 0");
-      return;
-    }
-
-    const updatedMaterials = materials.map(m => {
-      if (m.id === selectedMaterial.id) {
-        return {
-          ...m,
-          quantity: m.quantity + quantity,
-          lastUpdated: new Date().toISOString()
-        };
-      }
-      return m;
-    });
-
-    setMaterials(updatedMaterials);
-    saveToStorage(STORAGE_KEYS.MATERIALS, updatedMaterials);
-
-    // Record transaction
-    const transactions = getFromStorage(STORAGE_KEYS.MATERIAL_TRANSACTIONS);
-    transactions.push({
-      id: generateId(),
-      materialId: selectedMaterial.id,
-      materialName: `${selectedMaterial.category} - ${selectedMaterial.name}${selectedMaterial.variant ? ` (${selectedMaterial.variant})` : ""}`,
-      type: "receive",
-      quantity: quantity,
-      performedBy: user?.id || "",
-      performedByName: user?.name || "",
-      date: new Date().toISOString(),
-      notes: "Stock received"
-    });
-    saveToStorage(STORAGE_KEYS.MATERIAL_TRANSACTIONS, transactions);
-
-    setReceiveQuantity("");
-    setSelectedMaterial(null);
-    setReceiveDialogOpen(false);
   };
 
   const canManage = hasPermission(user, "manage_materials");
 
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-slate-600 dark:text-slate-400">Loading materials...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <>
       <SEO
-        title="Materials Management - Josm Electrical"
-        description="Manage raw materials inventory for electrical panel board manufacturing"
+        title="Materials Inventory - Josm Electrical"
+        description="Manage raw materials and inventory"
       />
       <DashboardLayout>
         <div className="space-y-6">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Materials Inventory</h1>
               <p className="text-slate-600 dark:text-slate-400 mt-1">
-                Track and manage raw materials for panel board manufacturing
+                Track raw materials and components
               </p>
             </div>
             {canManage && (
@@ -234,12 +201,21 @@ export default function MaterialsPage() {
                     Add Material
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add New Material</DialogTitle>
                     <DialogDescription>Add a new material to inventory</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Material Name *</Label>
+                      <Input
+                        id="name"
+                        placeholder="e.g., MCB Breaker"
+                        value={newMaterial.name}
+                        onChange={(e) => setNewMaterial({ ...newMaterial, name: e.target.value })}
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category *</Label>
                       <Input
@@ -250,26 +226,17 @@ export default function MaterialsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="name">Name/Rating *</Label>
-                      <Input
-                        id="name"
-                        placeholder="e.g., 16A"
-                        value={newMaterial.name}
-                        onChange={(e) => setNewMaterial({ ...newMaterial, name: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
                       <Label htmlFor="variant">Variant</Label>
                       <Input
                         id="variant"
-                        placeholder="e.g., s.p, d.p, T.p"
+                        placeholder="e.g., 6A s.p"
                         value={newMaterial.variant}
                         onChange={(e) => setNewMaterial({ ...newMaterial, variant: e.target.value })}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="quantity">Initial Quantity *</Label>
+                        <Label htmlFor="quantity">Quantity *</Label>
                         <Input
                           id="quantity"
                           type="number"
@@ -279,30 +246,29 @@ export default function MaterialsPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="minThreshold">Min Threshold *</Label>
-                        <Input
-                          id="minThreshold"
-                          type="number"
-                          placeholder="5"
-                          value={newMaterial.minThreshold}
-                          onChange={(e) => setNewMaterial({ ...newMaterial, minThreshold: e.target.value })}
-                        />
+                        <Label htmlFor="unit">Unit</Label>
+                        <Select value={newMaterial.unit} onValueChange={(value) => setNewMaterial({ ...newMaterial, unit: value })}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pcs">Pieces</SelectItem>
+                            <SelectItem value="kg">Kilograms</SelectItem>
+                            <SelectItem value="ltr">Liters</SelectItem>
+                            <SelectItem value="mtr">Meters</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="unit">Unit</Label>
-                      <Select value={newMaterial.unit} onValueChange={(value) => setNewMaterial({ ...newMaterial, unit: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pcs">Pieces</SelectItem>
-                          <SelectItem value="liters">Liters</SelectItem>
-                          <SelectItem value="rolls">Rolls</SelectItem>
-                          <SelectItem value="kg">Kilograms</SelectItem>
-                          <SelectItem value="meters">Meters</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="threshold">Minimum Threshold *</Label>
+                      <Input
+                        id="threshold"
+                        type="number"
+                        placeholder="10"
+                        value={newMaterial.minThreshold}
+                        onChange={(e) => setNewMaterial({ ...newMaterial, minThreshold: e.target.value })}
+                      />
                     </div>
                     <Button onClick={handleAddMaterial} className="w-full">
                       Add Material
@@ -313,68 +279,53 @@ export default function MaterialsPage() {
             )}
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Total Materials
+                  Total Items in Stock
                 </CardTitle>
                 <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white">{materials.length}</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">{totalItems}</div>
               </CardContent>
             </Card>
             
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Low Stock
+                  Material Types
+                </CardTitle>
+                <Filter className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">{materials.length}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Low Stock Items
                 </CardTitle>
                 <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{lowStockCount}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Out of Stock
-                </CardTitle>
-                <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{outOfStockCount}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Categories
-                </CardTitle>
-                <Filter className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white">{categories.length}</div>
+                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{lowStockItems.length}</div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Alerts */}
-          {lowStockCount > 0 && (
+          {lowStockItems.length > 0 && (
             <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900">
               <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               <AlertDescription className="text-orange-800 dark:text-orange-300">
-                <strong>{lowStockCount} materials</strong> are below minimum threshold and need restocking
+                <strong>{lowStockItems.length} materials</strong> are below minimum threshold and need restocking
               </AlertDescription>
             </Alert>
           )}
 
-          {/* Filters */}
           <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -399,27 +350,15 @@ export default function MaterialsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-
-                <Select value={stockFilter} onValueChange={setStockFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Stock Level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Stock Levels</SelectItem>
-                    <SelectItem value="low">Low Stock</SelectItem>
-                    <SelectItem value="out">Out of Stock</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </CardContent>
           </Card>
 
-          {/* Materials Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Materials List</CardTitle>
+              <CardTitle>Material List</CardTitle>
               <CardDescription>
-                {filteredMaterials.length} materials found
+                {filteredMaterials.length} items found
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -427,32 +366,30 @@ export default function MaterialsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Material Name</TableHead>
                       <TableHead>Category</TableHead>
-                      <TableHead>Name</TableHead>
                       <TableHead>Variant</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead className="text-right">Min Threshold</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Last Updated</TableHead>
                       {canManage && <TableHead className="text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredMaterials.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={canManage ? 8 : 7} className="text-center py-8 text-slate-500">
+                        <TableCell colSpan={canManage ? 7 : 6} className="text-center py-8 text-slate-500">
                           No materials found
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredMaterials.map((material) => {
                         const isLowStock = material.quantity <= material.minThreshold;
-                        const isOutOfStock = material.quantity === 0;
                         
                         return (
                           <TableRow key={material.id}>
-                            <TableCell className="font-medium">{material.category}</TableCell>
-                            <TableCell>{material.name}</TableCell>
+                            <TableCell className="font-medium">{material.name}</TableCell>
+                            <TableCell>{material.category}</TableCell>
                             <TableCell>{material.variant || "-"}</TableCell>
                             <TableCell className="text-right font-semibold">
                               {material.quantity} {material.unit}
@@ -461,16 +398,13 @@ export default function MaterialsPage() {
                               {material.minThreshold} {material.unit}
                             </TableCell>
                             <TableCell>
-                              {isOutOfStock ? (
+                              {material.quantity === 0 ? (
                                 <Badge variant="destructive">Out of Stock</Badge>
                               ) : isLowStock ? (
                                 <Badge className="bg-orange-500 hover:bg-orange-600">Low Stock</Badge>
                               ) : (
                                 <Badge className="bg-green-500 hover:bg-green-600">In Stock</Badge>
                               )}
-                            </TableCell>
-                            <TableCell className="text-sm text-slate-600 dark:text-slate-400">
-                              {new Date(material.lastUpdated).toLocaleDateString()}
                             </TableCell>
                             {canManage && (
                               <TableCell className="text-right">
@@ -482,7 +416,7 @@ export default function MaterialsPage() {
                                     setReceiveDialogOpen(true);
                                   }}
                                 >
-                                  <Upload className="h-3 w-3 mr-1" />
+                                  <TrendingUp className="h-3 w-3 mr-1" />
                                   Receive
                                 </Button>
                               </TableCell>
@@ -497,14 +431,12 @@ export default function MaterialsPage() {
             </CardContent>
           </Card>
 
-          {/* Receive Material Dialog */}
           <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Receive Material</DialogTitle>
                 <DialogDescription>
-                  Add stock for {selectedMaterial?.category} - {selectedMaterial?.name}
-                  {selectedMaterial?.variant && ` (${selectedMaterial.variant})`}
+                  {selectedMaterial?.name} {selectedMaterial?.variant && `(${selectedMaterial.variant})`}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -524,16 +456,8 @@ export default function MaterialsPage() {
                     onChange={(e) => setReceiveQuantity(e.target.value)}
                   />
                 </div>
-                {receiveQuantity && (
-                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                    <p className="text-sm text-slate-600 dark:text-slate-400">New Stock:</p>
-                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                      {(selectedMaterial?.quantity || 0) + parseFloat(receiveQuantity)} {selectedMaterial?.unit}
-                    </p>
-                  </div>
-                )}
                 <Button onClick={handleReceiveMaterial} className="w-full">
-                  Receive Material
+                  Confirm Receipt
                 </Button>
               </div>
             </DialogContent>

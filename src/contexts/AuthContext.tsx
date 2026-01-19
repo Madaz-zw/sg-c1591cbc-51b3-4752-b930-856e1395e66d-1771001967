@@ -1,65 +1,71 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User } from "@/types";
-import { getCurrentUser, login as authLogin, logout as authLogout, initializeDefaultUsers } from "@/lib/mockAuth";
+import { userService } from "@/services/userService";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => User | null;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const CURRENT_USER_KEY = "josm_current_user";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Initialize default users
-    initializeDefaultUsers();
-    
-    // Try to restore session from localStorage
-    const savedUser = localStorage.getItem(CURRENT_USER_KEY);
-    if (savedUser) {
+    // Initialize default users if needed
+    const initializeAuth = async () => {
       try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
+        await userService.initializeDefaultUsers();
+        
+        // Check for saved session
+        const savedUser = localStorage.getItem("josm_current_user");
+        if (savedUser) {
+          const userData = JSON.parse(savedUser);
+          // Verify user still exists in database
+          const dbUser = await userService.getUserById(userData.id);
+          if (dbUser) {
+            setUser(dbUser);
+          } else {
+            localStorage.removeItem("josm_current_user");
+          }
+        }
       } catch (error) {
-        console.error("Failed to restore user session:", error);
-        localStorage.removeItem(CURRENT_USER_KEY);
+        console.error("Auth initialization error:", error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    
-    setIsLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
-  const login = (email: string, password: string) => {
-    const loggedInUser = authLogin(email, password);
-    if (loggedInUser) {
-      setUser(loggedInUser);
-      // Save to localStorage for persistence
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(loggedInUser));
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const authenticatedUser = await userService.authenticateUser(email, password);
+      
+      if (authenticatedUser) {
+        setUser(authenticatedUser);
+        localStorage.setItem("josm_current_user", JSON.stringify(authenticatedUser));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
     }
-    return loggedInUser;
   };
 
   const logout = () => {
-    authLogout();
     setUser(null);
-    // Remove from localStorage
-    localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem("josm_current_user");
   };
 
-  // Show loading state while checking session
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return null; // Or a loading spinner
   }
 
   return (

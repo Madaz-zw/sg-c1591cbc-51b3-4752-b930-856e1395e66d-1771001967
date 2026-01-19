@@ -19,7 +19,7 @@ export interface Material {
   quantity: number;
   minThreshold: number;
   unit: string;
-  lastUpdated: string;
+  lastUpdated?: string;
 }
 
 export interface MaterialRequest {
@@ -84,13 +84,22 @@ export type JobStatus = "fabrication" | "assembling" | "completed";
 export interface JobCard {
   id: string;
   jobCardNumber: string;
+  jobName: string;
+  clientName: string;
   boardName: string;
   boardColor: string;
   boardType: "dinrail" | "hynman";
   recipientName: string;
   supervisorName: string;
   supervisorId: string;
+  priority?: "Low" | "Normal" | "High";
   status: JobStatus;
+  fabricationStatus?: string;
+  assemblingStatus?: string;
+  fabricationBy?: string;
+  fabricationByName?: string;
+  assemblingBy?: string;
+  assemblingByName?: string;
   materialsUsed: {
     materialId: string;
     materialName: string;
@@ -103,6 +112,7 @@ export interface JobCard {
   fabricationCompletedAt?: string;
   assemblingCompletedAt?: string;
   completedAt?: string;
+  notes?: string;
 }
 
 // Alias for backward compatibility

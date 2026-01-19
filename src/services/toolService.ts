@@ -67,8 +67,8 @@ export const toolService = {
     return this.mapToTool(data);
   },
 
-  // Check out tool
-  async checkOutTool(id: string, workerName: string, userId: string): Promise<Tool> {
+  // Internal helper for checkout update
+  async _updateToolCheckoutStatus(id: string, workerName: string, userId: string): Promise<Tool> {
     return this.updateTool(id, {
       status: "checked_out",
       checked_out_to: workerName,
@@ -77,22 +77,99 @@ export const toolService = {
     });
   },
 
-  // Return tool
-  async returnTool(id: string): Promise<Tool> {
-    return this.updateTool(id, {
+  // Checkout tool with transaction
+  async checkoutTool(
+    id: string,
+    workerName: string,
+    userId: string,
+    userName: string
+  ): Promise<Tool> {
+    // Get tool info
+    const tool = await this.getToolById(id);
+    if (!tool) throw new Error("Tool not found");
+
+    // Update tool status
+    const updated = await this._updateToolCheckoutStatus(id, workerName, userId);
+
+    // Create transaction
+    await this.createTransaction({
+      toolId: id,
+      toolName: tool.name,
+      type: "checkout",
+      userId: userId,
+      userName: userName,
+      date: new Date().toISOString(),
+      notes: `Checked out to ${workerName}`
+    });
+
+    return updated;
+  },
+
+  // Return tool with transaction
+  async returnTool(
+    id: string,
+    userId: string,
+    userName: string,
+    notes?: string
+  ): Promise<Tool> {
+    // Get tool info
+    const tool = await this.getToolById(id);
+    if (!tool) throw new Error("Tool not found");
+
+    // Update tool status
+    const updated = await this.updateTool(id, {
       status: "available",
       checked_out_to: null,
       checked_out_by: null,
       checked_out_date: null
     });
+
+    // Create transaction
+    await this.createTransaction({
+      toolId: id,
+      toolName: tool.name,
+      type: "return",
+      userId: userId,
+      userName: userName,
+      date: new Date().toISOString(),
+      notes: notes
+    });
+
+    return updated;
   },
 
-  // Mark tool as damaged
-  async markAsDamaged(id: string): Promise<Tool> {
-    return this.updateTool(id, {
+  // Mark tool as damaged with transaction
+  async markAsDamaged(
+    id: string,
+    userId: string,
+    userName: string,
+    notes: string
+  ): Promise<Tool> {
+    // Get tool info
+    const tool = await this.getToolById(id);
+    if (!tool) throw new Error("Tool not found");
+
+    // Update tool status
+    const updated = await this.updateTool(id, {
       status: "damaged",
-      is_damaged: true
+      is_damaged: true,
+      checked_out_to: null,
+      checked_out_by: null,
+      checked_out_date: null
     });
+
+    // Create transaction
+    await this.createTransaction({
+      toolId: id,
+      toolName: tool.name,
+      type: "damage",
+      userId: userId,
+      userName: userName,
+      date: new Date().toISOString(),
+      notes: notes
+    });
+
+    return updated;
   },
 
   // Get all transactions

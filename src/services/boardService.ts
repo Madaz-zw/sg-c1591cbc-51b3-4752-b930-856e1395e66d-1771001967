@@ -44,6 +44,7 @@ export const boardService = {
     const updateData: BoardUpdate = {};
     if (updates.quantity !== undefined) updateData.quantity = updates.quantity;
     if (updates.minThreshold !== undefined) updateData.min_threshold = updates.minThreshold;
+    if (updates.lastUpdated) updateData.updated_at = updates.lastUpdated;
 
     const { data, error } = await supabase
       .from("boards")
@@ -71,6 +72,74 @@ export const boardService = {
 
     if (error) throw error;
     return (data || []).map(this.mapToTransaction);
+  },
+
+  // Manufacture boards (add stock)
+  async manufactureBoard(
+    boardId: string,
+    quantity: number,
+    userId: string,
+    userName: string,
+    notes?: string
+  ): Promise<Board> {
+    const board = await this.getBoardById(boardId);
+    if (!board) throw new Error("Board not found");
+
+    // 1. Update board stock
+    const updatedBoard = await this.updateBoard(boardId, {
+      quantity: board.quantity + quantity,
+      lastUpdated: new Date().toISOString()
+    });
+
+    // 2. Create transaction
+    await this.createTransaction({
+      boardId,
+      type: "manufactured",
+      quantity,
+      userId,
+      userName,
+      date: new Date().toISOString(),
+      notes
+    });
+
+    return updatedBoard;
+  },
+
+  // Sell boards (reduce stock)
+  async sellBoard(
+    boardId: string,
+    quantity: number,
+    customerName: string,
+    userId: string,
+    userName: string,
+    notes?: string
+  ): Promise<Board> {
+    const board = await this.getBoardById(boardId);
+    if (!board) throw new Error("Board not found");
+
+    if (board.quantity < quantity) {
+      throw new Error("Insufficient stock");
+    }
+
+    // 1. Update board stock
+    const updatedBoard = await this.updateBoard(boardId, {
+      quantity: board.quantity - quantity,
+      lastUpdated: new Date().toISOString()
+    });
+
+    // 2. Create transaction
+    await this.createTransaction({
+      boardId,
+      type: "sold",
+      quantity,
+      customerName,
+      userId,
+      userName,
+      date: new Date().toISOString(),
+      notes
+    });
+
+    return updatedBoard;
   },
 
   async createTransaction(transaction: Omit<BoardTransaction, "id">): Promise<BoardTransaction> {
@@ -122,7 +191,7 @@ export const boardService = {
       color: row.color,
       quantity: row.quantity,
       minThreshold: row.min_threshold,
-      lastUpdated: new Date().toISOString() // TODO: Add updated_at column to DB
+      lastUpdated: row.updated_at || new Date().toISOString()
     };
   },
 

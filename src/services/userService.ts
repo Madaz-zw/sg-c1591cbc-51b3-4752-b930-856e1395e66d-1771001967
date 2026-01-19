@@ -61,6 +61,11 @@ export const userService = {
     return this.mapToUser(data);
   },
 
+  // Alias for backward compatibility
+  async registerUser(name: string, email: string, password: string, role: UserRole): Promise<User> {
+    return this.createUser(name, email, password, role);
+  },
+
   // Update user
   async updateUser(id: string, updates: Partial<UserInsert>): Promise<User> {
     const { data, error } = await supabase
