@@ -45,12 +45,12 @@ export default function RegisterPage() {
     }
 
     try {
-      registerUser({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: formData.role
-      });
+      registerUser(
+        formData.name,
+        formData.email,
+        formData.password,
+        formData.role
+      );
       
       setSuccess(true);
       setTimeout(() => {

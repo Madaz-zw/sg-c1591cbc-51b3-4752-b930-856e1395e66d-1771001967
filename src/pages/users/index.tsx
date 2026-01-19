@@ -85,7 +85,12 @@ export default function UsersPage() {
     }
 
     try {
-      registerUser(newUser);
+      registerUser(
+        newUser.name,
+        newUser.email,
+        newUser.password,
+        newUser.role
+      );
       setNewUser({ name: "", email: "", password: "", role: "worker" });
       setAddDialogOpen(false);
       loadUsers();
