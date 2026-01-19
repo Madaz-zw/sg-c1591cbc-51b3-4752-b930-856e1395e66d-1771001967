@@ -44,9 +44,9 @@ export const userService = {
   // Create new user
   async createUser(name: string, email: string, password: string, role: UserRole): Promise<User> {
     const newUser: UserInsert = {
-      name,
+      full_name: name,
       email,
-      password, // In production, this should be hashed
+      password, // Storing as text for now to match localStorage migration
       role,
       created_at: new Date().toISOString()
     };
@@ -97,7 +97,7 @@ export const userService = {
     return data ? this.mapToUser(data) : null;
   },
 
-  // Initialize default users (for first-time setup)
+  // Initialize default users
   async initializeDefaultUsers(): Promise<void> {
     const defaultUsers = [
       { name: "Admin User", email: "admin@josm.com", password: "admin123", role: "admin" as UserRole },
@@ -119,11 +119,11 @@ export const userService = {
   mapToUser(row: UserRow): User {
     return {
       id: row.id,
-      name: row.name,
+      name: row.full_name,
       email: row.email,
-      password: row.password,
+      password: row.password || "",
       role: row.role as UserRole,
-      createdAt: row.created_at
+      createdAt: row.created_at || new Date().toISOString()
     };
   }
 };

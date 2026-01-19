@@ -286,37 +286,52 @@ export type Database = {
       }
       material_transactions: {
         Row: {
+          board_color: string | null
+          board_name: string | null
           created_at: string | null
+          date: string | null
           id: string
           job_card_number: string | null
           material_id: string
+          material_name: string | null
           notes: string | null
           quantity: number
           recipient_name: string | null
           transaction_type: string
           user_id: string | null
+          user_name: string | null
         }
         Insert: {
+          board_color?: string | null
+          board_name?: string | null
           created_at?: string | null
+          date?: string | null
           id?: string
           job_card_number?: string | null
           material_id: string
+          material_name?: string | null
           notes?: string | null
           quantity: number
           recipient_name?: string | null
           transaction_type: string
           user_id?: string | null
+          user_name?: string | null
         }
         Update: {
+          board_color?: string | null
+          board_name?: string | null
           created_at?: string | null
+          date?: string | null
           id?: string
           job_card_number?: string | null
           material_id?: string
+          material_name?: string | null
           notes?: string | null
           quantity?: number
           recipient_name?: string | null
           transaction_type?: string
           user_id?: string | null
+          user_name?: string | null
         }
         Relationships: [
           {
@@ -401,27 +416,33 @@ export type Database = {
       tool_transactions: {
         Row: {
           created_at: string | null
+          date: string | null
           id: string
           notes: string | null
           tool_id: string
+          tool_name: string | null
           transaction_type: string
           user_id: string | null
           user_name: string
         }
         Insert: {
           created_at?: string | null
+          date?: string | null
           id?: string
           notes?: string | null
           tool_id: string
+          tool_name?: string | null
           transaction_type: string
           user_id?: string | null
           user_name: string
         }
         Update: {
           created_at?: string | null
+          date?: string | null
           id?: string
           notes?: string | null
           tool_id?: string
+          tool_name?: string | null
           transaction_type?: string
           user_id?: string | null
           user_name?: string
@@ -449,6 +470,8 @@ export type Database = {
           checked_out_at: string | null
           checked_out_by: string | null
           checked_out_by_name: string | null
+          checked_out_date: string | null
+          checked_out_to: string | null
           code: string
           created_at: string | null
           id: string
@@ -462,6 +485,8 @@ export type Database = {
           checked_out_at?: string | null
           checked_out_by?: string | null
           checked_out_by_name?: string | null
+          checked_out_date?: string | null
+          checked_out_to?: string | null
           code: string
           created_at?: string | null
           id?: string
@@ -475,6 +500,8 @@ export type Database = {
           checked_out_at?: string | null
           checked_out_by?: string | null
           checked_out_by_name?: string | null
+          checked_out_date?: string | null
+          checked_out_to?: string | null
           code?: string
           created_at?: string | null
           id?: string
@@ -499,6 +526,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          password: string | null
           role: string
           updated_at: string | null
         }
@@ -507,6 +535,7 @@ export type Database = {
           email: string
           full_name: string
           id?: string
+          password?: string | null
           role: string
           updated_at?: string | null
         }
@@ -515,6 +544,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          password?: string | null
           role?: string
           updated_at?: string | null
         }

@@ -36,6 +36,7 @@ export const toolService = {
     const newTool: ToolInsert = {
       name: tool.name,
       code: tool.code || null,
+      category: tool.category,
       status: tool.status,
       checked_out_to: tool.checkedOutTo || null,
       checked_out_by: tool.checkedOutBy || null,
@@ -99,7 +100,7 @@ export const toolService = {
     const { data, error } = await supabase
       .from("tool_transactions")
       .select("*")
-      .order("date", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
     return (data || []).map(this.mapToTransaction);
@@ -110,7 +111,7 @@ export const toolService = {
     const newTransaction: ToolTransactionInsert = {
       tool_id: transaction.toolId,
       tool_name: transaction.toolName,
-      type: transaction.type,
+      transaction_type: transaction.type,
       user_id: transaction.userId,
       user_name: transaction.userName,
       date: transaction.date,
@@ -133,11 +134,12 @@ export const toolService = {
       id: row.id,
       name: row.name,
       code: row.code || undefined,
+      category: row.category || "General",
       status: row.status as "available" | "checked_out" | "damaged",
       checkedOutTo: row.checked_out_to || undefined,
       checkedOutBy: row.checked_out_by || undefined,
       checkedOutDate: row.checked_out_date || undefined,
-      isDamaged: row.is_damaged
+      isDamaged: row.is_damaged || false
     };
   },
 
@@ -145,11 +147,11 @@ export const toolService = {
     return {
       id: row.id,
       toolId: row.tool_id,
-      toolName: row.tool_name,
-      type: row.type as "checkout" | "return" | "damaged",
-      userId: row.user_id,
-      userName: row.user_name,
-      date: row.date,
+      toolName: row.tool_name || "",
+      type: row.transaction_type as "checkout" | "return" | "damage",
+      userId: row.user_id || "",
+      userName: row.user_name || "",
+      date: row.date || row.created_at || new Date().toISOString(),
       notes: row.notes || undefined
     };
   }
