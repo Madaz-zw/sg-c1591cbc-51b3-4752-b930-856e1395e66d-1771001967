@@ -16,7 +16,7 @@ import {
   TrendingDown,
   Activity
 } from "lucide-react";
-import { Material, Tool, JobCard, FinishedBoard, MaterialRequest } from "@/types";
+import { Material, Tool, JobCard, Board, MaterialRequest } from "@/types";
 
 export default function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [jobs, setJobs] = useState<JobCard[]>([]);
-  const [boards, setFinishedBoards] = useState<FinishedBoard[]>([]);
+  const [boards, setFinishedBoards] = useState<Board[]>([]);
   const [pendingRequests, setPendingRequests] = useState<MaterialRequest[]>([]);
 
   useEffect(() => {
