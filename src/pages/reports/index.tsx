@@ -543,7 +543,7 @@ export default function ReportsPage() {
                               </TableCell>
                               <TableCell>{t.quantity}</TableCell>
                               <TableCell>{t.customerName || "-"}</TableCell>
-                              <TableCell className="text-sm">{t.performedByName}</TableCell>
+                              <TableCell className="text-sm">{t.userName}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

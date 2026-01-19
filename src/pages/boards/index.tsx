@@ -149,8 +149,8 @@ export default function BoardsPage() {
       boardName: `${newBoard.type} - ${newBoard.color}`,
       type: "manufactured",
       quantity: quantity,
-      performedBy: user?.id || "",
-      performedByName: user?.name || "",
+      userId: user?.id || "",
+      userName: user?.name || "",
       date: new Date().toISOString(),
       notes: "Production completed"
     });
@@ -191,8 +191,8 @@ export default function BoardsPage() {
       boardName: `${selectedBoard.type} - ${selectedBoard.color}`,
       type: "sold",
       quantity: quantity,
-      performedBy: user?.id || "",
-      performedByName: user?.name || "",
+      userId: user?.id || "",
+      userName: user?.name || "",
       customerName: customerName,
       date: new Date().toISOString(),
       notes: "Sold to customer"

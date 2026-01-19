@@ -121,7 +121,8 @@ export const boardService = {
       type: row.type as "Dinrail" | "Hynman",
       color: row.color,
       quantity: row.quantity,
-      minThreshold: row.min_threshold
+      minThreshold: row.min_threshold,
+      lastUpdated: new Date().toISOString() // TODO: Add updated_at column to DB
     };
   },
 

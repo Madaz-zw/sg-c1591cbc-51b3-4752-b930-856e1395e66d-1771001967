@@ -121,13 +121,12 @@ export interface Board {
 export interface BoardTransaction {
   id: string;
   boardId: string;
-  boardName: string;
+  boardName?: string;
   type: "manufactured" | "sold";
   quantity: number;
-  jobCardNumber?: string;
-  performedBy: string;
-  performedByName: string;
   customerName?: string;
+  userId: string;
+  userName: string;
   date: string;
   notes?: string;
 }
