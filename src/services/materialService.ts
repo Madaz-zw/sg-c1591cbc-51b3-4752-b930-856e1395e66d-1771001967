@@ -160,6 +160,52 @@ export const materialService = {
     approverName: string,
     notes?: string
   ): Promise<MaterialRequest> {
+    // First, get the request details
+    const { data: requestData, error: fetchError } = await supabase
+      .from("material_requests")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!requestData) throw new Error("Request not found");
+
+    const request = this.mapToRequest(requestData);
+
+    // If approving, check stock availability first
+    if (status === "approved") {
+      const material = await this.getMaterialById(request.materialId);
+      if (!material) throw new Error("Material not found");
+
+      // Check if enough stock is available
+      if (material.quantity < request.quantity) {
+        throw new Error(
+          `Insufficient stock. Available: ${material.quantity} ${material.unit}, Requested: ${request.quantity} ${material.unit}`
+        );
+      }
+
+      // Deduct material from stock
+      const newQuantity = material.quantity - request.quantity;
+      await this.updateQuantity(request.materialId, newQuantity);
+
+      // Create material transaction record
+      await this.createTransaction({
+        materialId: request.materialId,
+        materialName: request.materialName,
+        type: "issue",
+        quantity: request.quantity,
+        userId: request.requestedBy,
+        userName: request.requestedByName,
+        jobCardNumber: request.jobCardNumber,
+        boardName: requestData.board_name || undefined,
+        boardColor: requestData.board_color || undefined,
+        recipientName: requestData.recipient_name || undefined,
+        date: new Date().toISOString(),
+        notes: notes || `Approved request #${id.slice(0, 8)}`
+      });
+    }
+
+    // Update request status
     const updates: any = {
       status,
       approved_by: approverId,
@@ -177,13 +223,6 @@ export const materialService = {
       .single();
 
     if (error) throw error;
-
-    // If approved, verify stock and create transaction automatically
-    if (status === "approved" && data) {
-      const request = this.mapToRequest(data);
-      // Logic to deduct stock could go here, or be handled separately by the approver
-    }
-
     return this.mapToRequest(data);
   },
 
