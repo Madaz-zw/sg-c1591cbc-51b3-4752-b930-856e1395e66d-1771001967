@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SEO } from "@/components/SEO";
 import { UserPlus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { registerUser } from "@/lib/mockAuth";
 import { UserRole } from "@/types";
+import { userService } from "@/services/userService";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -22,8 +22,9 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess(false);
@@ -44,20 +45,35 @@ export default function RegisterPage() {
       return;
     }
 
+    // Check if email is valid
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
     try {
-      registerUser(
-        formData.name,
-        formData.email,
-        formData.password,
-        formData.role
-      );
+      setLoading(true);
+      
+      // Create user in Supabase
+      await userService.createUser({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role
+      });
       
       setSuccess(true);
+      
+      // Redirect after 2 seconds
       setTimeout(() => {
         router.push("/login");
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to register user");
+      console.error("Registration error:", err);
+      setError(err instanceof Error ? err.message : "Failed to register user. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -104,6 +120,7 @@ export default function RegisterPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                  disabled={loading || success}
                 />
               </div>
 
@@ -116,6 +133,7 @@ export default function RegisterPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
+                  disabled={loading || success}
                 />
               </div>
 
@@ -124,6 +142,7 @@ export default function RegisterPage() {
                 <Select
                   value={formData.role}
                   onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
+                  disabled={loading || success}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
@@ -147,6 +166,7 @@ export default function RegisterPage() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
+                  disabled={loading || success}
                 />
               </div>
 
@@ -159,19 +179,21 @@ export default function RegisterPage() {
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   required
+                  disabled={loading || success}
                 />
               </div>
 
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                disabled={loading || success}
               >
                 <UserPlus className="mr-2 h-4 w-4" />
-                Create Account
+                {loading ? "Creating Account..." : "Create Account"}
               </Button>
 
               <Link href="/login">
-                <Button type="button" variant="outline" className="w-full">
+                <Button type="button" variant="outline" className="w-full" disabled={loading}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back to Login
                 </Button>
