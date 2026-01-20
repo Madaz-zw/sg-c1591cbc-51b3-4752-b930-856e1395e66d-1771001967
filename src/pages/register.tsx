@@ -56,12 +56,12 @@ export default function RegisterPage() {
       setLoading(true);
       
       // Create user in Supabase
-      await userService.createUser({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: formData.role
-      });
+      await userService.createUser(
+        formData.name,
+        formData.email,
+        formData.password,
+        formData.role
+      );
       
       setSuccess(true);
       
