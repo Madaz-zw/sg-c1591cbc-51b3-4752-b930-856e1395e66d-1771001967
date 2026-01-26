@@ -168,6 +168,11 @@ export default function JobsPage() {
         user?.name || ""
       );
       await loadJobs();
+      
+      // Show success message
+      if (type === "assembling" && status === "Completed") {
+        alert("✅ Job completed successfully! Board has been added to Finished Boards inventory.");
+      }
     } catch (error) {
       console.error("Failed to update job status:", error);
       alert("Failed to update job status");
@@ -182,6 +187,19 @@ export default function JobsPage() {
         return <Badge className="bg-purple-500 hover:bg-purple-600">Assembling</Badge>;
       case "fabrication":
         return <Badge className="bg-blue-500 hover:bg-blue-600">Fabrication</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  const getProcessStatusBadge = (status: string) => {
+    switch (status) {
+      case "Completed":
+        return <Badge className="bg-green-500 hover:bg-green-600">✓ Completed</Badge>;
+      case "In Progress":
+        return <Badge className="bg-blue-500 hover:bg-blue-600">⚙ In Progress</Badge>;
+      case "Pending":
+        return <Badge variant="outline" className="text-slate-500">○ Pending</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -378,56 +396,86 @@ export default function JobsPage() {
                           {job.priority === "High" && <Badge variant="destructive">High Priority</Badge>}
                         </div>
                         <CardDescription className="mt-1">
-                          Client: {job.clientName} • Type: {job.boardType}
+                          Client: {job.clientName} • Board: {job.boardType} {job.boardColor}
                         </CardDescription>
                       </div>
                       {getStatusBadge(job.status)}
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                    {/* Workflow Progress Bar */}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-slate-600">Workflow Progress</span>
+                        <span className="text-xs text-slate-500">
+                          {job.status === "completed" ? "100%" : 
+                           job.status === "assembling" ? "75%" :
+                           job.fabricationStatus === "Completed" ? "50%" :
+                           job.fabricationStatus === "In Progress" ? "25%" : "0%"}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            job.status === "completed" ? "bg-green-500 w-full" :
+                            job.status === "assembling" ? "bg-purple-500 w-3/4" :
+                            job.fabricationStatus === "Completed" ? "bg-blue-500 w-1/2" :
+                            job.fabricationStatus === "In Progress" ? "bg-blue-500 w-1/4" :
+                            "bg-slate-300 w-0"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Fabrication Status */}
-                      <div className="space-y-2">
+                      <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
                         <div className="flex justify-between items-center">
-                          <h4 className="font-medium text-sm text-slate-500">Fabrication</h4>
-                          {getStatusBadge(job.fabricationStatus)}
+                          <h4 className="font-semibold text-sm flex items-center gap-2">
+                            <span className="text-blue-500">①</span> Fabrication
+                          </h4>
+                          {getProcessStatusBadge(job.fabricationStatus || "Pending")}
                         </div>
                         {canUpdateFabrication && job.fabricationStatus !== "Completed" && (
                           <div className="flex gap-2">
                             {job.fabricationStatus === "Pending" && (
                               <Button 
                                 size="sm" 
-                                variant="outline" 
-                                className="w-full"
+                                className="w-full bg-blue-500 hover:bg-blue-600"
                                 onClick={() => handleUpdateStatus(job.id, "fabrication", "In Progress")}
                               >
-                                <PlayCircle className="w-3 h-3 mr-1" /> Start
+                                <PlayCircle className="w-3 h-3 mr-1" /> Start Fabrication
                               </Button>
                             )}
                             {job.fabricationStatus === "In Progress" && (
                               <Button 
                                 size="sm" 
-                                variant="outline" 
-                                className="w-full text-green-600 hover:text-green-700"
+                                className="w-full bg-green-500 hover:bg-green-600"
                                 onClick={() => handleUpdateStatus(job.id, "fabrication", "Completed")}
                               >
-                                <CheckCircle className="w-3 h-3 mr-1" /> Complete
+                                <CheckCircle className="w-3 h-3 mr-1" /> Mark as Done
                               </Button>
                             )}
                           </div>
                         )}
                         {job.fabricationBy && (
-                          <div className="text-xs text-slate-400">
-                            By: {job.fabricationByName}
+                          <div className="text-xs text-slate-500">
+                            👤 {job.fabricationByName}
                           </div>
                         )}
                       </div>
 
                       {/* Assembling Status */}
-                      <div className="space-y-2">
+                      <div className={`space-y-3 p-4 rounded-lg border ${
+                        job.fabricationStatus === "Completed" 
+                          ? "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700" 
+                          : "bg-slate-100/50 dark:bg-slate-900/30 border-slate-200/50 dark:border-slate-700/50 opacity-60"
+                      }`}>
                         <div className="flex justify-between items-center">
-                          <h4 className="font-medium text-sm text-slate-500">Assembling</h4>
-                          {getStatusBadge(job.assemblingStatus)}
+                          <h4 className="font-semibold text-sm flex items-center gap-2">
+                            <span className="text-purple-500">②</span> Assembling
+                          </h4>
+                          {getProcessStatusBadge(job.assemblingStatus || "Pending")}
                         </div>
                         {canUpdateAssembling && 
                          job.fabricationStatus === "Completed" && 
@@ -436,37 +484,45 @@ export default function JobsPage() {
                             {job.assemblingStatus === "Pending" && (
                               <Button 
                                 size="sm" 
-                                variant="outline" 
-                                className="w-full"
+                                className="w-full bg-purple-500 hover:bg-purple-600"
                                 onClick={() => handleUpdateStatus(job.id, "assembling", "In Progress")}
                               >
-                                <PlayCircle className="w-3 h-3 mr-1" /> Start
+                                <PlayCircle className="w-3 h-3 mr-1" /> Start Assembling
                               </Button>
                             )}
                             {job.assemblingStatus === "In Progress" && (
                               <Button 
                                 size="sm" 
-                                variant="outline" 
-                                className="w-full text-green-600 hover:text-green-700"
+                                className="w-full bg-green-500 hover:bg-green-600"
                                 onClick={() => handleUpdateStatus(job.id, "assembling", "Completed")}
                               >
-                                <CheckCircle className="w-3 h-3 mr-1" /> Complete
+                                <CheckCircle className="w-3 h-3 mr-1" /> Mark as Done
                               </Button>
                             )}
                           </div>
                         )}
                         {job.assemblingStatus === "Pending" && job.fabricationStatus !== "Completed" && (
-                          <div className="text-xs text-slate-400 italic">
-                            Waiting for fabrication...
+                          <div className="text-xs text-slate-400 italic flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> Waiting for fabrication to complete...
                           </div>
                         )}
                         {job.assemblingBy && (
-                          <div className="text-xs text-slate-400">
-                            By: {job.assemblingByName}
+                          <div className="text-xs text-slate-500">
+                            👤 {job.assemblingByName}
                           </div>
                         )}
                       </div>
                     </div>
+
+                    {/* Completion Message */}
+                    {job.status === "completed" && (
+                      <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                        <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+                          <CheckCircle className="w-4 h-4" />
+                          Job Completed - Board added to Finished Boards inventory
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))

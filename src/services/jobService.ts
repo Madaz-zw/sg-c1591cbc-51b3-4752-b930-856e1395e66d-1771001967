@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { JobCard } from "@/types";
+import { boardService } from "./boardService";
 
 type JobCardRow = Database["public"]["Tables"]["job_cards"]["Row"];
 type JobCardInsert = Database["public"]["Tables"]["job_cards"]["Insert"];
@@ -106,6 +107,9 @@ export const jobService = {
     if (type === "assembling" && status === "Completed") {
       updates.status = "completed";
       updates.completedAt = new Date().toISOString();
+
+      // Auto-create finished board when assembling is completed
+      await this.createFinishedBoard(job, userId, userName);
     } else if (type === "fabrication" && status === "In Progress") {
       updates.status = "fabrication";
     } else if (type === "assembling" && status === "In Progress") {
@@ -113,6 +117,48 @@ export const jobService = {
     }
 
     return this.updateJob(id, updates);
+  },
+
+  // Create finished board when job is completed
+  async createFinishedBoard(
+    job: JobCard,
+    userId: string,
+    userName: string
+  ): Promise<void> {
+    try {
+      // Find or create the board type in boards table
+      const boardType = job.boardType === "dinrail" ? "Dinrail" : "Hynman";
+      const boardColor = job.boardColor || "Unknown";
+
+      // Check if this board type/color combination exists
+      const existingBoards = await boardService.getAllBoards();
+      let targetBoard = existingBoards.find(
+        b => b.type === boardType && b.color.toLowerCase() === boardColor.toLowerCase()
+      );
+
+      if (!targetBoard) {
+        // Create new board type if it doesn't exist
+        const minThreshold = boardType === "Dinrail" ? 5 : 2;
+        targetBoard = await boardService.createBoard({
+          type: boardType as "Dinrail" | "Hynman",
+          color: boardColor,
+          quantity: 0,
+          minThreshold
+        });
+      }
+
+      // Manufacture 1 board (add to inventory)
+      await boardService.manufactureBoard(
+        targetBoard.id,
+        1,
+        userId,
+        userName,
+        `Auto-created from Job Card: ${job.jobCardNumber} - ${job.jobName}`
+      );
+    } catch (error) {
+      console.error("Failed to create finished board:", error);
+      // Don't throw error - job completion should still succeed even if board creation fails
+    }
   },
 
   // Get job by ID
