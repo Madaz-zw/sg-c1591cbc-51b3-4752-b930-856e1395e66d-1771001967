@@ -143,7 +143,8 @@ export const jobService = {
           type: boardType as "Dinrail" | "Hynman",
           color: boardColor,
           quantity: 0,
-          minThreshold
+          minThreshold,
+          lastUpdated: new Date().toISOString()
         });
       }
 
