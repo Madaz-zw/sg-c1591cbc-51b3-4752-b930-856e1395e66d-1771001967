@@ -1,0 +1,1 @@
+ALTER TABLE job_cards ADD COLUMN IF NOT EXISTS photo_urls text[] DEFAULT ARRAY[]::text[];
