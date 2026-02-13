@@ -111,6 +111,40 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </p>
               </div>
             </div>
+            
+            {/* Permissions Badge */}
+            <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">
+                Quick Access:
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {hasPermission(user, "manage_jobs") && (
+                  <span className="text-[10px] px-2 py-0.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-200 rounded">
+                    Manage Jobs
+                  </span>
+                )}
+                {hasPermission(user, "update_fabrication") && (
+                  <span className="text-[10px] px-2 py-0.5 bg-purple-100 dark:bg-purple-800/50 text-purple-700 dark:text-purple-200 rounded">
+                    Fabrication
+                  </span>
+                )}
+                {hasPermission(user, "update_assembling") && (
+                  <span className="text-[10px] px-2 py-0.5 bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 rounded">
+                    Assembling
+                  </span>
+                )}
+                {hasPermission(user, "manage_materials") && (
+                  <span className="text-[10px] px-2 py-0.5 bg-orange-100 dark:bg-orange-800/50 text-orange-700 dark:text-orange-200 rounded">
+                    Materials
+                  </span>
+                )}
+                {user?.role === "admin" && (
+                  <span className="text-[10px] px-2 py-0.5 bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-200 rounded">
+                    Full Access
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Navigation */}

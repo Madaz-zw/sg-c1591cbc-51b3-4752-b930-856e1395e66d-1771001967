@@ -16,7 +16,8 @@ import {
   CheckCircle,
   PlayCircle,
   Clock,
-  Printer
+  Printer,
+  Edit
 } from "lucide-react";
 import { JobCard } from "@/types";
 import { hasPermission } from "@/lib/mockAuth";
@@ -55,13 +56,27 @@ export default function JobsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<JobCard | null>(null);
   const [loading, setLoading] = useState(true);
 
   // New Job Form State
   const [newJob, setNewJob] = useState({
     jobName: "",
     clientName: "",
-    boardType: "Dinrail" as "Dinrail" | "Hynman",
+    boardType: "Surface Mounted" as "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure",
+    priority: "Normal" as "Low" | "Normal" | "High",
+    notes: ""
+  });
+
+  // Edit Job Form State
+  const [editJob, setEditJob] = useState({
+    jobName: "",
+    clientName: "",
+    boardName: "",
+    boardColor: "",
+    boardType: "Surface Mounted" as "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure",
+    recipientName: "",
     priority: "Normal" as "Low" | "Normal" | "High",
     notes: ""
   });
@@ -125,7 +140,7 @@ export default function JobsPage() {
         clientName: newJob.clientName,
         boardName: newJob.jobName,
         boardColor: "",
-        boardType: newJob.boardType.toLowerCase() as "dinrail" | "hynman",
+        boardType: newJob.boardType,
         recipientName: "",
         supervisorName: user?.name || "",
         supervisorId: user?.id || "",
@@ -143,7 +158,7 @@ export default function JobsPage() {
       setNewJob({
         jobName: "",
         clientName: "",
-        boardType: "Dinrail",
+        boardType: "Surface Mounted",
         priority: "Normal",
         notes: ""
       });
@@ -151,6 +166,50 @@ export default function JobsPage() {
     } catch (error) {
       console.error("Failed to create job:", error);
       alert("Failed to create job");
+    }
+  };
+
+  const handleEditJob = (job: JobCard) => {
+    setSelectedJob(job);
+    setEditJob({
+      jobName: job.jobName,
+      clientName: job.clientName,
+      boardName: job.boardName,
+      boardColor: job.boardColor,
+      boardType: job.boardType,
+      recipientName: job.recipientName,
+      priority: job.priority || "Normal",
+      notes: job.notes || ""
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateJob = async () => {
+    if (!selectedJob) return;
+    
+    if (!editJob.jobName || !editJob.clientName) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      await jobService.updateJobDetails(selectedJob.id, {
+        jobName: editJob.jobName,
+        clientName: editJob.clientName,
+        boardName: editJob.boardName,
+        boardColor: editJob.boardColor,
+        boardType: editJob.boardType,
+        recipientName: editJob.recipientName,
+        priority: editJob.priority,
+        notes: editJob.notes
+      });
+
+      await loadJobs();
+      setEditDialogOpen(false);
+      setSelectedJob(null);
+    } catch (error) {
+      console.error("Failed to update job:", error);
+      alert("Failed to update job");
     }
   };
 
@@ -271,14 +330,16 @@ export default function JobsPage() {
                         <Label>Board Type</Label>
                         <Select
                           value={newJob.boardType}
-                          onValueChange={(v: "Dinrail" | "Hynman") => setNewJob({ ...newJob, boardType: v })}
+                          onValueChange={(v: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure") => setNewJob({ ...newJob, boardType: v })}
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Dinrail">Dinrail</SelectItem>
-                            <SelectItem value="Hynman">Hynman</SelectItem>
+                            <SelectItem value="Surface Mounted">Surface Mounted</SelectItem>
+                            <SelectItem value="Mini-Flush">Mini-Flush</SelectItem>
+                            <SelectItem value="Watertight">Watertight</SelectItem>
+                            <SelectItem value="Enclosure">Enclosure</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -316,6 +377,135 @@ export default function JobsPage() {
               </Dialog>
             )}
           </div>
+
+          {/* Edit Job Dialog */}
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Job Card</DialogTitle>
+                <DialogDescription>
+                  Update job details - {selectedJob?.jobCardNumber}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-jobName">Job Name *</Label>
+                    <Input
+                      id="edit-jobName"
+                      placeholder="e.g., Panel Box 20x20"
+                      value={editJob.jobName}
+                      onChange={(e) => setEditJob({ ...editJob, jobName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-clientName">Client Name *</Label>
+                    <Input
+                      id="edit-clientName"
+                      placeholder="e.g., ABC Corp"
+                      value={editJob.clientName}
+                      onChange={(e) => setEditJob({ ...editJob, clientName: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-boardName">Board Name</Label>
+                    <Input
+                      id="edit-boardName"
+                      placeholder="Board name"
+                      value={editJob.boardName}
+                      onChange={(e) => setEditJob({ ...editJob, boardName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-boardColor">Board Color</Label>
+                    <Input
+                      id="edit-boardColor"
+                      placeholder="e.g., Grey, Blue"
+                      value={editJob.boardColor}
+                      onChange={(e) => setEditJob({ ...editJob, boardColor: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Board Type</Label>
+                    <Select
+                      value={editJob.boardType}
+                      onValueChange={(v: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure") => 
+                        setEditJob({ ...editJob, boardType: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Surface Mounted">Surface Mounted</SelectItem>
+                        <SelectItem value="Mini-Flush">Mini-Flush</SelectItem>
+                        <SelectItem value="Watertight">Watertight</SelectItem>
+                        <SelectItem value="Enclosure">Enclosure</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Select
+                      value={editJob.priority}
+                      onValueChange={(v: "Low" | "Normal" | "High") => 
+                        setEditJob({ ...editJob, priority: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Normal">Normal</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-recipientName">Recipient Name</Label>
+                  <Input
+                    id="edit-recipientName"
+                    placeholder="Who will receive this board"
+                    value={editJob.recipientName}
+                    onChange={(e) => setEditJob({ ...editJob, recipientName: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-notes">Notes</Label>
+                  <Textarea
+                    id="edit-notes"
+                    placeholder="Additional instructions..."
+                    rows={3}
+                    value={editJob.notes}
+                    onChange={(e) => setEditJob({ ...editJob, notes: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleUpdateJob} className="flex-1">
+                    Save Changes
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setEditDialogOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
@@ -399,7 +589,19 @@ export default function JobsPage() {
                           Client: {job.clientName} • Board: {job.boardType} {job.boardColor}
                         </CardDescription>
                       </div>
-                      {getStatusBadge(job.status)}
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(job.status)}
+                        {canManage && job.status !== "completed" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditJob(job)}
+                            className="h-8 px-2"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -453,7 +655,7 @@ export default function JobsPage() {
                                 className="w-full bg-green-500 hover:bg-green-600"
                                 onClick={() => handleUpdateStatus(job.id, "fabrication", "Completed")}
                               >
-                                <CheckCircle className="w-3 h-3 mr-1" /> Mark as Done
+                                <CheckCircle className="w-3 h-3 mr-1" /> Complete Fabrication
                               </Button>
                             )}
                           </div>
@@ -496,7 +698,7 @@ export default function JobsPage() {
                                 className="w-full bg-green-500 hover:bg-green-600"
                                 onClick={() => handleUpdateStatus(job.id, "assembling", "Completed")}
                               >
-                                <CheckCircle className="w-3 h-3 mr-1" /> Mark as Done
+                                <CheckCircle className="w-3 h-3 mr-1" /> Complete Assembling
                               </Button>
                             )}
                           </div>
@@ -513,6 +715,64 @@ export default function JobsPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Quick Action - Next Stage Button */}
+                    {job.status !== "completed" && (canUpdateFabrication || canUpdateAssembling) && (
+                      <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                              {job.fabricationStatus === "Pending" && "Ready to start fabrication"}
+                              {job.fabricationStatus === "In Progress" && "Fabrication in progress"}
+                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && "Ready to start assembling"}
+                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && "Assembling in progress"}
+                            </p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                              {job.fabricationStatus === "Pending" && "Click to begin the fabrication process"}
+                              {job.fabricationStatus === "In Progress" && "Mark fabrication as complete when done"}
+                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && "Click to begin the assembling process"}
+                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && "Mark assembling as complete when done"}
+                            </p>
+                          </div>
+                          {job.fabricationStatus === "Pending" && canUpdateFabrication && (
+                            <Button
+                              size="sm"
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                              onClick={() => handleUpdateStatus(job.id, "fabrication", "In Progress")}
+                            >
+                              Start Fabrication →
+                            </Button>
+                          )}
+                          {job.fabricationStatus === "In Progress" && canUpdateFabrication && (
+                            <Button
+                              size="sm"
+                              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                              onClick={() => handleUpdateStatus(job.id, "fabrication", "Completed")}
+                            >
+                              Complete Fabrication ✓
+                            </Button>
+                          )}
+                          {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && canUpdateAssembling && (
+                            <Button
+                              size="sm"
+                              className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                              onClick={() => handleUpdateStatus(job.id, "assembling", "In Progress")}
+                            >
+                              Start Assembling →
+                            </Button>
+                          )}
+                          {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && canUpdateAssembling && (
+                            <Button
+                              size="sm"
+                              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                              onClick={() => handleUpdateStatus(job.id, "assembling", "Completed")}
+                            >
+                              Complete Assembling ✓
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Completion Message */}
                     {job.status === "completed" && (

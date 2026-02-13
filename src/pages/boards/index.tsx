@@ -63,7 +63,7 @@ export default function BoardsPage() {
   const [notes, setNotes] = useState("");
 
   const [newBoard, setNewBoard] = useState({
-    type: "Dinrail" as "Dinrail" | "Hynman",
+    type: "Surface Mounted" as "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure",
     color: "",
     minThreshold: 5
   });
@@ -111,7 +111,7 @@ export default function BoardsPage() {
       });
 
       await loadBoards();
-      setNewBoard({ type: "Dinrail", color: "", minThreshold: 5 });
+      setNewBoard({ type: "Surface Mounted", color: "", minThreshold: 5 });
       setNewBoardDialogOpen(false);
     } catch (error) {
       console.error("Failed to create board:", error);
@@ -223,14 +223,16 @@ export default function BoardsPage() {
                       <Label>Board Type</Label>
                       <Select
                         value={newBoard.type}
-                        onValueChange={(v: "Dinrail" | "Hynman") => setNewBoard({ ...newBoard, type: v })}
+                        onValueChange={(v: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure") => setNewBoard({ ...newBoard, type: v })}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Dinrail">Dinrail</SelectItem>
-                          <SelectItem value="Hynman">Hynman</SelectItem>
+                          <SelectItem value="Surface Mounted">Surface Mounted</SelectItem>
+                          <SelectItem value="Mini-Flush">Mini-Flush</SelectItem>
+                          <SelectItem value="Watertight">Watertight</SelectItem>
+                          <SelectItem value="Enclosure">Enclosure</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

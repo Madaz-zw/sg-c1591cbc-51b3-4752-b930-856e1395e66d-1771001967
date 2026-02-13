@@ -171,11 +171,13 @@ export const boardService = {
     if (existing.length > 0) return;
 
     const defaultBoards = [
-      { type: "Dinrail", color: "Orange", quantity: 0, minThreshold: 5 },
-      { type: "Dinrail", color: "White", quantity: 0, minThreshold: 5 },
-      { type: "Dinrail", color: "Grey", quantity: 0, minThreshold: 5 },
-      { type: "Hynman", color: "Red", quantity: 0, minThreshold: 2 },
-      { type: "Hynman", color: "Black", quantity: 0, minThreshold: 2 }
+      { type: "Surface Mounted", color: "Orange", quantity: 0, minThreshold: 5 },
+      { type: "Surface Mounted", color: "White", quantity: 0, minThreshold: 5 },
+      { type: "Surface Mounted", color: "Grey", quantity: 0, minThreshold: 5 },
+      { type: "Mini-Flush", color: "Red", quantity: 0, minThreshold: 2 },
+      { type: "Mini-Flush", color: "Black", quantity: 0, minThreshold: 2 },
+      { type: "Watertight", color: "Grey", quantity: 0, minThreshold: 5 },
+      { type: "Enclosure", color: "White", quantity: 0, minThreshold: 5 }
     ];
 
     for (const board of defaultBoards) {
@@ -187,7 +189,7 @@ export const boardService = {
   mapToBoard(row: BoardRow): Board {
     return {
       id: row.id,
-      type: row.type as "Dinrail" | "Hynman",
+      type: row.type as "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure",
       color: row.color,
       quantity: row.quantity,
       minThreshold: row.min_threshold,

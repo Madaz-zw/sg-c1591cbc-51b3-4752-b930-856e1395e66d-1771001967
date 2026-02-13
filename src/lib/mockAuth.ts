@@ -110,13 +110,17 @@ const permissions: Record<UserRole, string[]> = {
     "view_jobs", "manage_jobs",
     "view_boards",
     "view_reports",
-    "view_material_requests"
+    "view_material_requests",
+    "update_fabrication",
+    "update_assembling"
   ],
   worker: [
     "view_materials",
     "view_tools",
     "view_jobs",
-    "view_material_requests", "create_material_requests"
+    "view_material_requests", "create_material_requests",
+    "update_fabrication",
+    "update_assembling"
   ],
   sales_warehouse: [
     "view_boards", "manage_boards",

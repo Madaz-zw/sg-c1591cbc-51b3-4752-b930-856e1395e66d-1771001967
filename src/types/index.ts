@@ -88,7 +88,7 @@ export interface JobCard {
   clientName: string;
   boardName: string;
   boardColor: string;
-  boardType: "dinrail" | "hynman";
+  boardType: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure";
   recipientName: string;
   supervisorName: string;
   supervisorId: string;
@@ -121,7 +121,7 @@ export type Job = JobCard;
 // Finished Board Types
 export interface Board {
   id: string;
-  type: "Dinrail" | "Hynman";
+  type: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure";
   color: string;
   quantity: number;
   minThreshold: number;

@@ -31,7 +31,7 @@ export const jobService = {
       client_name: job.clientName || "",
       board_name: job.boardName || job.jobName || "",
       board_color: job.boardColor || "",
-      board_type: (job.boardType || "dinrail").toLowerCase(),
+      board_type: job.boardType || "Surface Mounted",
       recipient_name: job.recipientName || "",
       supervisor_name: job.supervisorName || "",
       supervisor_id: job.supervisorId || "",
@@ -62,6 +62,41 @@ export const jobService = {
     if (updates.fabricationCompletedAt) updateData.fabrication_completed_at = updates.fabricationCompletedAt;
     if (updates.assemblingCompletedAt) updateData.assembling_completed_at = updates.assemblingCompletedAt;
     if (updates.completedAt) updateData.completed_at = updates.completedAt;
+
+    const { data, error } = await supabase
+      .from("job_cards")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.mapToJobCard(data);
+  },
+
+  // Update job details (editable fields)
+  async updateJobDetails(
+    id: string,
+    updates: {
+      jobName?: string;
+      clientName?: string;
+      boardName?: string;
+      boardColor?: string;
+      boardType?: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure";
+      recipientName?: string;
+      priority?: "Low" | "Normal" | "High";
+      notes?: string;
+    }
+  ): Promise<JobCard> {
+    const updateData: JobCardUpdate = {};
+    if (updates.jobName !== undefined) updateData.job_name = updates.jobName;
+    if (updates.clientName !== undefined) updateData.client_name = updates.clientName;
+    if (updates.boardName !== undefined) updateData.board_name = updates.boardName;
+    if (updates.boardColor !== undefined) updateData.board_color = updates.boardColor;
+    if (updates.boardType !== undefined) updateData.board_type = updates.boardType;
+    if (updates.recipientName !== undefined) updateData.recipient_name = updates.recipientName;
+    if (updates.priority !== undefined) updateData.priority = updates.priority;
+    if (updates.notes !== undefined) updateData.notes = updates.notes;
 
     const { data, error } = await supabase
       .from("job_cards")
@@ -127,7 +162,8 @@ export const jobService = {
   ): Promise<void> {
     try {
       // Find or create the board type in boards table
-      const boardType = job.boardType === "dinrail" ? "Dinrail" : "Hynman";
+      const boardType = job.boardType;
+      
       const boardColor = job.boardColor || "Unknown";
 
       // Check if this board type/color combination exists
@@ -138,9 +174,10 @@ export const jobService = {
 
       if (!targetBoard) {
         // Create new board type if it doesn't exist
-        const minThreshold = boardType === "Dinrail" ? 5 : 2;
+        // Different thresholds based on board type
+        const minThreshold = boardType === "Surface Mounted" || boardType === "Enclosure" ? 5 : 2;
         targetBoard = await boardService.createBoard({
-          type: boardType as "Dinrail" | "Hynman",
+          type: boardType,
           color: boardColor,
           quantity: 0,
           minThreshold,
@@ -203,7 +240,7 @@ export const jobService = {
       clientName: row.client_name || "",
       boardName: row.board_name,
       boardColor: row.board_color || "",
-      boardType: (row.board_type as "dinrail" | "hynman") || "dinrail",
+      boardType: (row.board_type as "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure") || "Surface Mounted",
       recipientName: row.recipient_name,
       supervisorName: row.supervisor_name,
       supervisorId: row.supervisor_id,
