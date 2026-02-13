@@ -17,11 +17,18 @@ import {
   PlayCircle,
   Clock,
   Printer,
-  Edit
+  Edit,
+  Package,
+  Camera,
+  Image as ImageIcon,
+  Loader2
 } from "lucide-react";
 import { JobCard } from "@/types";
 import { hasPermission } from "@/lib/mockAuth";
 import { jobService } from "@/services/jobService";
+import { storageService } from "@/services/storageService";
+import { materialService } from "@/services/materialService";
+import { Material } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +66,16 @@ export default function JobsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobCard | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Feature States
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialDialogOpen, setMaterialDialogOpen] = useState(false);
+  const [selectedMaterialId, setSelectedMaterialId] = useState("");
+  const [materialQuantity, setMaterialQuantity] = useState(1);
+  const [currentStageForMaterial, setCurrentStageForMaterial] = useState<"fabrication" | "assembling">("fabrication");
+  
+  const [photoUploadOpen, setPhotoUploadOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // New Job Form State
   const [newJob, setNewJob] = useState({
@@ -93,6 +110,7 @@ export default function JobsPage() {
     }
 
     loadJobs();
+    loadMaterials();
   }, [isAuthenticated, user, router]);
 
   const loadJobs = async () => {
@@ -106,6 +124,15 @@ export default function JobsPage() {
       alert("Failed to load jobs");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMaterials = async () => {
+    try {
+      const data = await materialService.getAllMaterials();
+      setMaterials(data);
+    } catch (error) {
+      console.error("Failed to load materials:", error);
     }
   };
 
@@ -236,6 +263,146 @@ export default function JobsPage() {
       console.error("Failed to update job status:", error);
       alert("Failed to update job status");
     }
+  };
+
+  const handleOpenMaterialDialog = (job: JobCard, stage: "fabrication" | "assembling") => {
+    setSelectedJob(job);
+    setCurrentStageForMaterial(stage);
+    setSelectedMaterialId("");
+    setMaterialQuantity(1);
+    setMaterialDialogOpen(true);
+  };
+
+  const handleAddMaterial = async () => {
+    if (!selectedJob || !selectedMaterialId) return;
+
+    try {
+      const material = materials.find(m => m.id === selectedMaterialId);
+      if (!material) return;
+
+      await jobService.addMaterialsToJob(selectedJob.id, [{
+        materialId: material.id,
+        materialName: material.name,
+        quantity: materialQuantity,
+        process: currentStageForMaterial
+      }]);
+
+      await loadJobs();
+      setMaterialDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add material:", error);
+      alert("Failed to add material");
+    }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedJob || !event.target.files || event.target.files.length === 0) return;
+
+    try {
+      setUploading(true);
+      const files = Array.from(event.target.files);
+      const uploadPromises = files.map(async (file) => {
+        const path = `${selectedJob.jobCardNumber}/${Date.now()}-${file.name}`;
+        return storageService.uploadFile(file, "job-photos", path);
+      });
+
+      const urls = await Promise.all(uploadPromises);
+      await jobService.addPhotosToJob(selectedJob.id, urls);
+      await loadJobs();
+      
+      // Update selected job to show new photos immediately if dialog is open
+      const updatedJob = await jobService.getJobById(selectedJob.id);
+      if (updatedJob) setSelectedJob(updatedJob);
+      
+    } catch (error) {
+      console.error("Failed to upload photos:", error);
+      alert("Failed to upload photos");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePrintJob = (job: JobCard) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const materialsList = job.materialsUsed.map(m => 
+      `<li>${m.materialName}: ${m.quantity} (${m.process})</li>`
+    ).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Job Card - ${job.jobCardNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
+            .title { font-size: 24px; font-weight: bold; }
+            .subtitle { font-size: 14px; color: #666; }
+            .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 4px; }
+            .section-title { font-weight: bold; margin-bottom: 10px; background: #f5f5f5; padding: 5px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .label { font-weight: bold; color: #555; }
+            .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+            .status-completed { background: #dcfce7; color: #166534; }
+            .status-progress { background: #dbeafe; color: #1e40af; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">JOSM ELECTRICAL</div>
+            <div class="subtitle">Manufacturing Job Card</div>
+            <h2>${job.jobCardNumber}</h2>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Job Details</div>
+            <div class="grid">
+              <div><span class="label">Job Name:</span> ${job.jobName}</div>
+              <div><span class="label">Client:</span> ${job.clientName}</div>
+              <div><span class="label">Board Type:</span> ${job.boardType}</div>
+              <div><span class="label">Priority:</span> ${job.priority || 'Normal'}</div>
+              <div><span class="label">Created By:</span> ${job.createdByName}</div>
+              <div><span class="label">Date:</span> ${new Date(job.createdAt).toLocaleDateString()}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Workflow Status</div>
+            <div class="grid">
+              <div>
+                <span class="label">Fabrication:</span> 
+                ${job.fabricationStatus} 
+                ${job.fabricationByName ? `(${job.fabricationByName})` : ''}
+              </div>
+              <div>
+                <span class="label">Assembling:</span> 
+                ${job.assemblingStatus}
+                ${job.assemblingByName ? `(${job.assemblingByName})` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Materials Used</div>
+            <ul>${materialsList || '<li>No materials recorded</li>'}</ul>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Notes</div>
+            <p>${job.notes || 'No notes'}</p>
+          </div>
+          
+          <div style="margin-top: 40px; border-top: 1px solid #ccc; padding-top: 20px; display: flex; justify-content: space-between;">
+             <div>Supervisor Signature</div>
+             <div>Worker Signature</div>
+          </div>
+
+          <script>window.print();</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const getStatusBadge = (status: string) => {
@@ -591,6 +758,15 @@ export default function JobsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(job.status)}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handlePrintJob(job)}
+                          className="h-8 px-2"
+                          title="Print Job Card"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
                         {canManage && job.status !== "completed" && (
                           <Button
                             size="sm"
@@ -629,6 +805,44 @@ export default function JobsPage() {
                       </div>
                     </div>
 
+                    {/* Workflow Stages Visualization */}
+                    <div className="flex items-center justify-between mb-6 px-2">
+                       {/* Stage 1: Fabrication */}
+                       <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
+                            job.fabricationStatus === "Completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
+                            job.fabricationStatus === "In Progress" ? "bg-blue-100 text-blue-700 border-2 border-blue-500 animate-pulse" :
+                            "bg-slate-100 text-slate-400 border-2 border-slate-300"
+                          }`}>1</div>
+                          <span className={`text-xs font-medium ${job.fabricationStatus === "Pending" ? "text-slate-400" : "text-slate-700"}`}>Fabrication</span>
+                       </div>
+                       
+                       {/* Connector */}
+                       <div className={`flex-1 h-0.5 mx-2 ${job.fabricationStatus === "Completed" ? "bg-green-500" : "bg-slate-200"}`} />
+
+                       {/* Stage 2: Assembling */}
+                       <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
+                            job.assemblingStatus === "Completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
+                            job.assemblingStatus === "In Progress" ? "bg-purple-100 text-purple-700 border-2 border-purple-500 animate-pulse" :
+                            "bg-slate-100 text-slate-400 border-2 border-slate-300"
+                          }`}>2</div>
+                          <span className={`text-xs font-medium ${job.assemblingStatus === "Pending" ? "text-slate-400" : "text-slate-700"}`}>Assembling</span>
+                       </div>
+
+                       {/* Connector */}
+                       <div className={`flex-1 h-0.5 mx-2 ${job.status === "completed" ? "bg-green-500" : "bg-slate-200"}`} />
+
+                       {/* Stage 3: Finished */}
+                       <div className="flex flex-col items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
+                            job.status === "completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
+                            "bg-slate-100 text-slate-400 border-2 border-slate-300"
+                          }`}>3</div>
+                          <span className={`text-xs font-medium ${job.status === "completed" ? "text-slate-700" : "text-slate-400"}`}>Finished</span>
+                       </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Fabrication Status */}
                       <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -638,30 +852,34 @@ export default function JobsPage() {
                           </h4>
                           {getProcessStatusBadge(job.fabricationStatus || "Pending")}
                         </div>
-                        {canUpdateFabrication && job.fabricationStatus !== "Completed" && (
-                          <div className="flex gap-2">
-                            {job.fabricationStatus === "Pending" && (
-                              <Button 
-                                size="sm" 
-                                className="w-full bg-blue-500 hover:bg-blue-600"
-                                onClick={() => handleUpdateStatus(job.id, "fabrication", "In Progress")}
-                              >
-                                <PlayCircle className="w-3 h-3 mr-1" /> Start Fabrication
-                              </Button>
-                            )}
-                            {job.fabricationStatus === "In Progress" && (
-                              <Button 
-                                size="sm" 
-                                className="w-full bg-green-500 hover:bg-green-600"
-                                onClick={() => handleUpdateStatus(job.id, "fabrication", "Completed")}
-                              >
-                                <CheckCircle className="w-3 h-3 mr-1" /> Complete Fabrication
-                              </Button>
-                            )}
+                        
+                        {/* Materials Used List (Fabrication) */}
+                        {job.materialsUsed.filter(m => m.process === "fabrication").length > 0 && (
+                          <div className="text-xs text-slate-500 space-y-1 mt-2 border-t border-slate-200 pt-2">
+                            <span className="font-semibold">Materials:</span>
+                            {job.materialsUsed.filter(m => m.process === "fabrication").map((m, i) => (
+                              <div key={i} className="flex justify-between">
+                                <span>• {m.materialName}</span>
+                                <span>x{m.quantity}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
+
+                        {/* Add Material Button */}
+                        {job.fabricationStatus === "In Progress" && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="w-full h-7 text-xs text-slate-500 hover:text-blue-600"
+                            onClick={() => handleOpenMaterialDialog(job, "fabrication")}
+                          >
+                            <Plus className="w-3 h-3 mr-1" /> Add Material
+                          </Button>
+                        )}
+
                         {job.fabricationBy && (
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-slate-500 pt-2 border-t border-slate-200 mt-2">
                             👤 {job.fabricationByName}
                           </div>
                         )}
@@ -679,37 +897,39 @@ export default function JobsPage() {
                           </h4>
                           {getProcessStatusBadge(job.assemblingStatus || "Pending")}
                         </div>
-                        {canUpdateAssembling && 
-                         job.fabricationStatus === "Completed" && 
-                         job.assemblingStatus !== "Completed" && (
-                          <div className="flex gap-2">
-                            {job.assemblingStatus === "Pending" && (
-                              <Button 
-                                size="sm" 
-                                className="w-full bg-purple-500 hover:bg-purple-600"
-                                onClick={() => handleUpdateStatus(job.id, "assembling", "In Progress")}
-                              >
-                                <PlayCircle className="w-3 h-3 mr-1" /> Start Assembling
-                              </Button>
-                            )}
-                            {job.assemblingStatus === "In Progress" && (
-                              <Button 
-                                size="sm" 
-                                className="w-full bg-green-500 hover:bg-green-600"
-                                onClick={() => handleUpdateStatus(job.id, "assembling", "Completed")}
-                              >
-                                <CheckCircle className="w-3 h-3 mr-1" /> Complete Assembling
-                              </Button>
-                            )}
+
+                        {/* Materials Used List (Assembling) */}
+                        {job.materialsUsed.filter(m => m.process === "assembling").length > 0 && (
+                          <div className="text-xs text-slate-500 space-y-1 mt-2 border-t border-slate-200 pt-2">
+                            <span className="font-semibold">Materials:</span>
+                            {job.materialsUsed.filter(m => m.process === "assembling").map((m, i) => (
+                              <div key={i} className="flex justify-between">
+                                <span>• {m.materialName}</span>
+                                <span>x{m.quantity}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
+
+                        {/* Add Material Button */}
+                        {job.assemblingStatus === "In Progress" && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="w-full h-7 text-xs text-slate-500 hover:text-purple-600"
+                            onClick={() => handleOpenMaterialDialog(job, "assembling")}
+                          >
+                            <Plus className="w-3 h-3 mr-1" /> Add Material
+                          </Button>
+                        )}
+
                         {job.assemblingStatus === "Pending" && job.fabricationStatus !== "Completed" && (
                           <div className="text-xs text-slate-400 italic flex items-center gap-1">
                             <Clock className="w-3 h-3" /> Waiting for fabrication to complete...
                           </div>
                         )}
                         {job.assemblingBy && (
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-slate-500 pt-2 border-t border-slate-200 mt-2">
                             👤 {job.assemblingByName}
                           </div>
                         )}
@@ -774,12 +994,29 @@ export default function JobsPage() {
                       </div>
                     )}
 
-                    {/* Completion Message */}
+                    {/* Completion Message and Photos */}
                     {job.status === "completed" && (
-                      <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                        <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
-                          <CheckCircle className="w-4 h-4" />
-                          Job Completed - Board added to Finished Boards inventory
+                      <div className="mt-4 space-y-3">
+                        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex justify-between items-center">
+                          <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+                            <CheckCircle className="w-4 h-4" />
+                            Job Completed - Board added to Finished Boards inventory
+                          </div>
+                          
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="bg-white hover:bg-slate-50 text-slate-600 h-8"
+                            onClick={() => {
+                              setSelectedJob(job);
+                              setPhotoUploadOpen(true);
+                            }}
+                          >
+                            <ImageIcon className="w-3 h-3 mr-2" />
+                            {job.photoUrls && job.photoUrls.length > 0 
+                              ? `${job.photoUrls.length} Photos` 
+                              : "Add Photos"}
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -788,6 +1025,90 @@ export default function JobsPage() {
               ))
             )}
           </div>
+
+          {/* Add Material Dialog */}
+          <Dialog open={materialDialogOpen} onOpenChange={setMaterialDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Material - {currentStageForMaterial === 'fabrication' ? 'Fabrication' : 'Assembling'}</DialogTitle>
+                <DialogDescription>Record materials used in this stage</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Select Material</Label>
+                  <Select value={selectedMaterialId} onValueChange={setSelectedMaterialId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Search material..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {materials.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name} ({m.quantity} {m.unit} available)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Quantity</Label>
+                  <Input 
+                    type="number" 
+                    min="1" 
+                    value={materialQuantity} 
+                    onChange={(e) => setMaterialQuantity(parseInt(e.target.value) || 0)} 
+                  />
+                </div>
+                <Button onClick={handleAddMaterial} disabled={!selectedMaterialId} className="w-full">
+                  Add Material
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Photo Upload Dialog */}
+          <Dialog open={photoUploadOpen} onOpenChange={setPhotoUploadOpen}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Job Photos</DialogTitle>
+                <DialogDescription>
+                  Photos for {selectedJob?.jobCardNumber}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {selectedJob?.photoUrls?.map((url, index) => (
+                    <div key={index} className="relative aspect-video rounded-lg overflow-hidden border bg-slate-100">
+                      <img src={url} alt={`Job photo ${index + 1}`} className="object-cover w-full h-full" />
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-center aspect-video rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors relative">
+                    {uploading ? (
+                      <div className="flex flex-col items-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                        <span className="text-xs text-slate-500 mt-2">Uploading...</span>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center cursor-pointer w-full h-full justify-center">
+                        <Camera className="h-8 w-8 text-slate-400" />
+                        <span className="text-xs text-slate-500 mt-2">Add Photo</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          multiple 
+                          className="hidden" 
+                          onChange={handlePhotoUpload}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                   <Button variant="outline" onClick={() => setPhotoUploadOpen(false)}>Close</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
         </div>
       </DashboardLayout>
     </>
