@@ -113,6 +113,7 @@ export interface JobCard {
   assemblingCompletedAt?: string;
   completedAt?: string;
   notes?: string;
+  photoUrls?: string[];
 }
 
 // Alias for backward compatibility

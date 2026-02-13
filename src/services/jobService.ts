@@ -62,6 +62,7 @@ export const jobService = {
     if (updates.fabricationCompletedAt) updateData.fabrication_completed_at = updates.fabricationCompletedAt;
     if (updates.assemblingCompletedAt) updateData.assembling_completed_at = updates.assemblingCompletedAt;
     if (updates.completedAt) updateData.completed_at = updates.completedAt;
+    if (updates.photoUrls) updateData.photo_urls = updates.photoUrls;
 
     const { data, error } = await supabase
       .from("job_cards")
@@ -259,7 +260,29 @@ export const jobService = {
       fabricationCompletedAt: row.fabrication_completed_at || undefined,
       assemblingCompletedAt: row.assembling_completed_at || undefined,
       completedAt: row.completed_at || undefined,
-      notes: row.notes || undefined
+      notes: row.notes || undefined,
+      photoUrls: (row.photo_urls as string[]) || []
     };
+  },
+
+  // Add materials to job card
+  async addMaterialsToJob(
+    jobId: string,
+    materials: Array<{ materialId: string; materialName: string; quantity: number; process: "fabrication" | "assembling" }>
+  ): Promise<JobCard> {
+    const job = await this.getJobById(jobId);
+    if (!job) throw new Error("Job not found");
+
+    const updatedMaterials = [...(job.materialsUsed || []), ...materials];
+    return this.updateJob(jobId, { materialsUsed: updatedMaterials });
+  },
+
+  // Add photos to completed job
+  async addPhotosToJob(jobId: string, photoUrls: string[]): Promise<JobCard> {
+    const job = await this.getJobById(jobId);
+    if (!job) throw new Error("Job not found");
+
+    const updatedPhotos = [...(job.photoUrls || []), ...photoUrls];
+    return this.updateJob(jobId, { photoUrls: updatedPhotos });
   }
 };
