@@ -60,6 +60,7 @@ export default function MaterialRequestsPage() {
   const [approvalNotes, setApprovalNotes] = useState("");
   const [rejectionNotes, setRejectionNotes] = useState("");
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
 
   const [newRequest, setNewRequest] = useState({
     materialId: "",
@@ -157,9 +158,10 @@ export default function MaterialRequestsPage() {
   };
 
   const handleApprove = async () => {
-    if (!selectedRequest) return;
+    if (!selectedRequest || processing) return;
 
     try {
+      setProcessing(true);
       await materialService.updateRequestStatus(
         selectedRequest.id,
         "approved",
@@ -174,14 +176,17 @@ export default function MaterialRequestsPage() {
       setApproveDialogOpen(false);
     } catch (error) {
       console.error("Failed to approve request:", error);
-      alert("Failed to approve request");
+      alert(error instanceof Error ? error.message : "Failed to approve request");
+    } finally {
+      setProcessing(false);
     }
   };
 
   const handleReject = async () => {
-    if (!selectedRequest) return;
+    if (!selectedRequest || processing) return;
 
     try {
+      setProcessing(true);
       await materialService.updateRequestStatus(
         selectedRequest.id,
         "rejected",
@@ -196,7 +201,9 @@ export default function MaterialRequestsPage() {
       setRejectDialogOpen(false);
     } catch (error) {
       console.error("Failed to reject request:", error);
-      alert("Failed to reject request");
+      alert(error instanceof Error ? error.message : "Failed to reject request");
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -466,7 +473,7 @@ export default function MaterialRequestsPage() {
                     onChange={(e) => setApprovalNotes(e.target.value)}
                   />
                 </div>
-                <Button onClick={handleApprove} className="w-full bg-green-500 hover:bg-green-600">
+                <Button onClick={handleApprove} className="w-full bg-green-500 hover:bg-green-600" disabled={processing}>
                   Confirm Approval
                 </Button>
               </div>
@@ -491,7 +498,7 @@ export default function MaterialRequestsPage() {
                     onChange={(e) => setRejectionNotes(e.target.value)}
                   />
                 </div>
-                <Button onClick={handleReject} variant="destructive" className="w-full">
+                <Button onClick={handleReject} variant="destructive" className="w-full" disabled={processing}>
                   Confirm Rejection
                 </Button>
               </div>

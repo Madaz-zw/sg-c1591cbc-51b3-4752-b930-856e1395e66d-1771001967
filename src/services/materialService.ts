@@ -170,6 +170,11 @@ export const materialService = {
     if (fetchError) throw fetchError;
     if (!requestData) throw new Error("Request not found");
 
+    // CRITICAL: Check if request is already processed to prevent duplicates
+    if (requestData.status !== "pending") {
+      throw new Error(`Request already ${requestData.status}. Cannot process again.`);
+    }
+
     const request = this.mapToRequest(requestData);
 
     // If approving, check stock availability first
