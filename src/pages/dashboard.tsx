@@ -52,7 +52,7 @@ export default function DashboardPage() {
     const lowStockMaterials = materials.filter(m => m.quantity <= m.minThreshold);
     const toolsInUse = tools.filter(t => t.status === "checked_out" && !t.isDamaged);
     const activeJobs = jobs.filter(j => j.status !== "completed");
-    const lowStockBoards = boards.filter(b => b.quantity <= b.minThreshold);
+    const lowStockBoards = boards.filter(b => b.quantity <= b.min_threshold);
     const pendingRequests = requests.filter(r => r.status === "pending");
 
     setStats({

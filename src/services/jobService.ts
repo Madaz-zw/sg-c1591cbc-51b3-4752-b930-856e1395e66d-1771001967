@@ -201,11 +201,11 @@ export const jobService = {
         // Different thresholds based on board type
         const minThreshold = boardType === "Surface Mounted" || boardType === "Enclosure" ? 5 : 2;
         targetBoard = await boardService.createBoard({
+          board_name: job.boardName || job.jobName, // Use board name or job name
           type: boardType,
           color: boardColor,
           quantity: 0,
-          minThreshold,
-          lastUpdated: new Date().toISOString()
+          min_threshold: minThreshold // Correct property name
         });
       }
 

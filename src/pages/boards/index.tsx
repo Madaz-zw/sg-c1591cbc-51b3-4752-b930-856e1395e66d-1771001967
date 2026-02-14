@@ -357,7 +357,7 @@ export default function BoardsPage() {
                     <TableHead>Type</TableHead>
                     <TableHead>Color</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead className="text-right">Min. Qty</TableHead>
+                    <TableHead className="text-right">Min Threshold</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -367,7 +367,15 @@ export default function BoardsPage() {
                     <TableRow key={board.id}>
                       <TableCell className="font-medium">{board.board_name}</TableCell>
                       <TableCell>{board.type}</TableCell>
-                      <TableCell>{board.color}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-4 h-4 rounded-full border border-gray-200" 
+                            style={{ backgroundColor: board.color.toLowerCase() }}
+                          />
+                          {board.color}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right font-semibold">
                         {board.quantity}
                       </TableCell>

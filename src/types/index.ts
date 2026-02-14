@@ -122,23 +122,25 @@ export type Job = JobCard;
 // Finished Board Types
 export interface Board {
   id: string;
-  type: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure";
+  board_name: string;
+  type: string; // "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure"
   color: string;
   quantity: number;
-  minThreshold: number;
-  lastUpdated: string;
+  min_threshold: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BoardTransaction {
   id: string;
-  boardId: string;
-  boardName?: string;
-  type: "manufactured" | "sold";
+  board_id: string;
+  board_name: string;
+  transaction_type: "manufacture" | "sold" | "add" | "deduct" | "adjustment";
   quantity: number;
-  customerName?: string;
-  userId: string;
-  userName: string;
-  date: string;
+  customer_name?: string;
+  user_id: string;
+  user_name: string;
+  created_at: string;
   notes?: string;
 }
 

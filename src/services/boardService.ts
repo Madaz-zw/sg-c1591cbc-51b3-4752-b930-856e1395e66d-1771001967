@@ -223,5 +223,62 @@ export const boardService = {
 
     if (error) throw error;
     return data || [];
+  },
+
+  // Manufacture board (from Job completion)
+  async manufactureBoard(
+    boardId: string,
+    quantity: number,
+    userId: string,
+    userName: string,
+    notes?: string
+  ): Promise<Board> {
+    // 1. Add quantity
+    const board = await this.addQuantity(boardId, quantity);
+
+    // 2. Record specific manufacture transaction
+    // Note: addQuantity already records an "add" transaction. 
+    // We might want to update that transaction to be "manufacture" or just add a new one.
+    // However, the cleanest way is to use a specific method that handles both.
+    // Let's manually handle it here to ensure the type is "manufacture"
+    
+    // We actually called addQuantity above which creates an 'add' transaction.
+    // To avoid double transactions, let's implement the logic directly:
+    
+    // Re-fetch to get current state (though addQuantity returns it)
+    // Actually, let's rewrite this to not use addQuantity to avoid the wrong transaction type
+    
+    // undo the addQuantity call? No, let's just do it properly:
+    
+    const { data: currentBoard } = await supabase
+      .from("boards")
+      .select("*")
+      .eq("id", boardId)
+      .single();
+      
+    if (!currentBoard) throw new Error("Board not found");
+    
+    const newQuantity = currentBoard.quantity + quantity;
+    
+    const { data: updatedBoard, error: updateError } = await supabase
+      .from("boards")
+      .update({ quantity: newQuantity })
+      .eq("id", boardId)
+      .select()
+      .single();
+      
+    if (updateError) throw updateError;
+    
+    await this.recordTransaction({
+      board_id: boardId,
+      board_name: updatedBoard.board_name,
+      quantity,
+      transaction_type: "manufacture",
+      user_id: userId,
+      user_name: userName,
+      notes: notes || "Manufactured from job"
+    });
+    
+    return updatedBoard;
   }
 };

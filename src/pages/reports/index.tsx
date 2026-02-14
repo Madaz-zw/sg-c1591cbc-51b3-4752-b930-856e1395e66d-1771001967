@@ -111,7 +111,7 @@ export default function ReportsPage() {
       setCustomerGoods(goodsData);
       setMaterialTransactions(matTransData);
       setToolTransactions(toolTransData);
-      setBoardTransactions(boardTransData);
+      setBoardTransactions(boardTransData as BoardTransaction[]);
 
     } catch (error) {
       console.error("Failed to load report data:", error);
@@ -121,11 +121,11 @@ export default function ReportsPage() {
     }
   };
 
-  const filterByDate = <T extends { date?: string; createdAt?: string; receivedDate?: string }>(items: T[]) => {
+  const filterByDate = <T extends { date?: string; createdAt?: string; receivedDate?: string; created_at?: string }>(items: T[]) => {
     if (!startDate && !endDate) return items;
     
     return items.filter(item => {
-      const itemDate = item.date || item.createdAt || item.receivedDate;
+      const itemDate = item.date || item.createdAt || item.receivedDate || item.created_at;
       if (!itemDate) return true;
       
       const date = new Date(itemDate);
@@ -176,7 +176,7 @@ export default function ReportsPage() {
   const lowStockMaterials = materials.filter(m => m.quantity <= m.minThreshold);
   const damagedTools = tools.filter(t => t.status === "damaged");
   const activeJobs = jobs.filter(j => j.status !== "completed");
-  const lowStockBoards = boards.filter(b => b.quantity <= b.minThreshold);
+  const lowStockBoards = boards.filter(b => b.quantity <= b.min_threshold);
 
   const filteredMaterialTransactions = filterByDate(materialTransactions);
   const filteredToolTransactions = filterByDate(toolTransactions);
@@ -578,6 +578,7 @@ export default function ReportsPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead>Board Name</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Color</TableHead>
                             <TableHead>Quantity</TableHead>
@@ -587,18 +588,19 @@ export default function ReportsPage() {
                         <TableBody>
                           {boards.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={4} className="text-center text-slate-500">
+                              <TableCell colSpan={5} className="text-center text-slate-500">
                                 No boards in inventory
                               </TableCell>
                             </TableRow>
                           ) : (
                             boards.map(b => (
                               <TableRow key={b.id}>
-                                <TableCell className="font-medium">{b.type}</TableCell>
+                                <TableCell className="font-medium">{b.board_name}</TableCell>
+                                <TableCell>{b.type}</TableCell>
                                 <TableCell>{b.color}</TableCell>
                                 <TableCell className="font-bold">{b.quantity}</TableCell>
                                 <TableCell>
-                                  {b.quantity <= b.minThreshold ? (
+                                  {b.quantity <= b.min_threshold ? (
                                     <span className="text-orange-600 font-semibold">Low Stock</span>
                                   ) : (
                                     <span className="text-green-600">In Stock</span>
@@ -629,7 +631,7 @@ export default function ReportsPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Date</TableHead>
-                            <TableHead>Board</TableHead>
+                            <TableHead>Board Name</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Quantity</TableHead>
                             <TableHead>Customer</TableHead>
@@ -647,20 +649,21 @@ export default function ReportsPage() {
                             filteredBoardTransactions.slice(0, 50).map(t => (
                               <TableRow key={t.id}>
                                 <TableCell className="text-sm">
-                                  {new Date(t.date).toLocaleDateString()}
+                                  {new Date(t.created_at).toLocaleDateString()}
                                 </TableCell>
-                                <TableCell>{t.boardName}</TableCell>
+                                <TableCell>{t.board_name}</TableCell>
                                 <TableCell>
                                   <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    t.type === "manufactured" ? "bg-green-100 text-green-700" :
-                                    "bg-blue-100 text-blue-700"
+                                    t.transaction_type === "manufacture" ? "bg-green-100 text-green-700" :
+                                    t.transaction_type === "sold" ? "bg-blue-100 text-blue-700" :
+                                    "bg-gray-100 text-gray-700"
                                   }`}>
-                                    {t.type}
+                                    {t.transaction_type}
                                   </span>
                                 </TableCell>
                                 <TableCell>{t.quantity}</TableCell>
-                                <TableCell>{t.customerName || "-"}</TableCell>
-                                <TableCell className="text-sm">{t.userName}</TableCell>
+                                <TableCell>{t.customer_name || "-"}</TableCell>
+                                <TableCell className="text-sm">{t.user_name}</TableCell>
                               </TableRow>
                             ))
                           )}
@@ -865,7 +868,7 @@ export default function ReportsPage() {
                         <div>
                           <p className="text-slate-600 dark:text-slate-400">Boards Sold</p>
                           <p className="text-xl font-bold">
-                            {filteredBoardTransactions.filter(t => t.type === "sold").reduce((sum, t) => sum + t.quantity, 0)}
+                            {filteredBoardTransactions.filter(t => t.transaction_type === "sold").reduce((sum, t) => sum + t.quantity, 0)}
                           </p>
                         </div>
                       </div>
