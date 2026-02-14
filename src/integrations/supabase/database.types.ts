@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -26,7 +26,7 @@ export type Database = {
           job_card_number: string | null
           notes: string | null
           quantity: number
-          type: string
+          transaction_type: string
           user_id: string | null
           user_name: string | null
         }
@@ -40,7 +40,7 @@ export type Database = {
           job_card_number?: string | null
           notes?: string | null
           quantity: number
-          type: string
+          transaction_type: string
           user_id?: string | null
           user_name?: string | null
         }
@@ -54,7 +54,7 @@ export type Database = {
           job_card_number?: string | null
           notes?: string | null
           quantity?: number
-          type?: string
+          transaction_type?: string
           user_id?: string | null
           user_name?: string | null
         }
@@ -77,6 +77,7 @@ export type Database = {
       }
       boards: {
         Row: {
+          board_name: string | null
           color: string
           created_at: string | null
           id: string
@@ -86,6 +87,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          board_name?: string | null
           color: string
           created_at?: string | null
           id?: string
@@ -95,6 +97,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          board_name?: string | null
           color?: string
           created_at?: string | null
           id?: string
