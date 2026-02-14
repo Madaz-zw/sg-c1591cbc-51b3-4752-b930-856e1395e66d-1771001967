@@ -118,41 +118,64 @@ export const jobService = {
     userId: string,
     userName: string
   ): Promise<JobCard> {
+    console.log("=== updateJobStatus called ===");
+    console.log("Job ID:", id);
+    console.log("Type:", type);
+    console.log("Status:", status);
+    console.log("User ID:", userId);
+    console.log("User Name:", userName);
+
     const job = await this.getJobById(id);
-    if (!job) throw new Error("Job not found");
+    if (!job) {
+      console.error("Job not found with ID:", id);
+      throw new Error("Job not found");
+    }
+
+    console.log("Current job data:", job);
 
     const updates: Partial<JobCard> = {};
 
     if (type === "fabrication") {
+      console.log("Updating fabrication status...");
       updates.fabricationStatus = status;
       updates.fabricationBy = userId;
       updates.fabricationByName = userName;
       if (status === "Completed") {
         updates.fabricationCompletedAt = new Date().toISOString();
+        console.log("Setting fabrication completed timestamp");
       }
     } else {
+      console.log("Updating assembling status...");
       updates.assemblingStatus = status;
       updates.assemblingBy = userId;
       updates.assemblingByName = userName;
       if (status === "Completed") {
         updates.assemblingCompletedAt = new Date().toISOString();
+        console.log("Setting assembling completed timestamp");
       }
     }
 
     // Update overall status
     if (type === "assembling" && status === "Completed") {
+      console.log("Job completed - setting overall status to completed");
       updates.status = "completed";
       updates.completedAt = new Date().toISOString();
 
       // Auto-create finished board when assembling is completed
+      console.log("Auto-creating finished board...");
       await this.createFinishedBoard(job, userId, userName);
     } else if (type === "fabrication" && status === "In Progress") {
+      console.log("Setting overall status to fabrication");
       updates.status = "fabrication";
     } else if (type === "assembling" && status === "In Progress") {
+      console.log("Setting overall status to assembling");
       updates.status = "assembling";
     }
 
-    return this.updateJob(id, updates);
+    console.log("Updates to apply:", updates);
+    const result = await this.updateJob(id, updates);
+    console.log("Update result:", result);
+    return result;
   },
 
   // Create finished board when job is completed

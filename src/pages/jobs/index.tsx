@@ -980,7 +980,11 @@ export default function JobsPage() {
                         {job.fabricationStatus === "Pending" && (
                           <Button
                             className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-6 text-base"
-                            onClick={() => handleUpdateStatus(job.id, "fabrication", "In Progress")}
+                            onClick={() => {
+                              console.log("🔵 BUTTON CLICKED! Starting fabrication for job:", job.id);
+                              handleUpdateStatus(job.id, "fabrication", "In Progress");
+                            }}
+                            type="button"
                           >
                             <PlayCircle className="w-5 h-5 mr-2" />
                             Start Fabrication →
@@ -990,7 +994,11 @@ export default function JobsPage() {
                         {job.fabricationStatus === "In Progress" && (
                           <Button
                             className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-6 text-base"
-                            onClick={() => handleUpdateStatus(job.id, "fabrication", "Completed")}
+                            onClick={() => {
+                              console.log("🟢 BUTTON CLICKED! Completing fabrication for job:", job.id);
+                              handleUpdateStatus(job.id, "fabrication", "Completed");
+                            }}
+                            type="button"
                           >
                             <CheckCircle className="w-5 h-5 mr-2" />
                             Complete Fabrication ✓
@@ -1001,7 +1009,11 @@ export default function JobsPage() {
                         {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && (
                           <Button
                             className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold py-6 text-base"
-                            onClick={() => handleUpdateStatus(job.id, "assembling", "In Progress")}
+                            onClick={() => {
+                              console.log("🟣 BUTTON CLICKED! Starting assembling for job:", job.id);
+                              handleUpdateStatus(job.id, "assembling", "In Progress");
+                            }}
+                            type="button"
                           >
                             <PlayCircle className="w-5 h-5 mr-2" />
                             Start Assembling →
@@ -1011,7 +1023,11 @@ export default function JobsPage() {
                         {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && (
                           <Button
                             className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-6 text-base"
-                            onClick={() => handleUpdateStatus(job.id, "assembling", "Completed")}
+                            onClick={() => {
+                              console.log("🟢 BUTTON CLICKED! Completing assembling for job:", job.id);
+                              handleUpdateStatus(job.id, "assembling", "Completed");
+                            }}
+                            type="button"
                           >
                             <CheckCheck className="w-5 h-5 mr-2" />
                             Complete Assembling ✓
