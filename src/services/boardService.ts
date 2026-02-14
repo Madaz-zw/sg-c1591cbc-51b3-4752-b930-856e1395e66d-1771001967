@@ -1,4 +1,3 @@
-<![CDATA[
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -9,22 +8,18 @@ type BoardTransaction = Database["public"]["Tables"]["board_transactions"]["Row"
 type BoardTransactionInsert = Database["public"]["Tables"]["board_transactions"]["Insert"];
 
 export const boardService = {
-  // Get all boards with their current quantities
+  // Get all boards
   async getAllBoards(): Promise<Board[]> {
     const { data, error } = await supabase
       .from("boards")
       .select("*")
       .order("board_name", { ascending: true });
 
-    if (error) {
-      console.error("Error fetching boards:", error);
-      throw error;
-    }
-
+    if (error) throw error;
     return data || [];
   },
 
-  // Get a single board by ID
+  // Get single board
   async getBoardById(id: string): Promise<Board | null> {
     const { data, error } = await supabase
       .from("boards")
@@ -32,15 +27,11 @@ export const boardService = {
       .eq("id", id)
       .single();
 
-    if (error) {
-      console.error("Error fetching board:", error);
-      throw error;
-    }
-
+    if (error) throw error;
     return data;
   },
 
-  // Create a new board (manual addition)
+  // Create board (manual)
   async createBoard(board: Omit<BoardInsert, "id" | "created_at" | "updated_at">): Promise<Board> {
     const { data, error } = await supabase
       .from("boards")
@@ -48,12 +39,8 @@ export const boardService = {
       .select()
       .single();
 
-    if (error) {
-      console.error("Error creating board:", error);
-      throw error;
-    }
+    if (error) throw error;
 
-    // Record transaction
     if (data && board.quantity > 0) {
       await this.recordTransaction({
         board_id: data.id,
@@ -75,11 +62,7 @@ export const boardService = {
       .select()
       .single();
 
-    if (error) {
-      console.error("Error updating board:", error);
-      throw error;
-    }
-
+    if (error) throw error;
     return data;
   },
 
@@ -90,24 +73,17 @@ export const boardService = {
       .delete()
       .eq("id", id);
 
-    if (error) {
-      console.error("Error deleting board:", error);
-      throw error;
-    }
+    if (error) throw error;
   },
 
-  // Add quantity to board (receive new stock)
+  // Add quantity
   async addQuantity(boardId: string, quantity: number, notes?: string): Promise<Board> {
     const board = await this.getBoardById(boardId);
     if (!board) throw new Error("Board not found");
 
     const newQuantity = board.quantity + quantity;
+    const updated = await this.updateBoard(boardId, { quantity: newQuantity });
 
-    const updated = await this.updateBoard(boardId, {
-      quantity: newQuantity
-    });
-
-    // Record transaction
     await this.recordTransaction({
       board_id: boardId,
       quantity,
@@ -118,7 +94,7 @@ export const boardService = {
     return updated;
   },
 
-  // Deduct quantity from board (sale/usage)
+  // Deduct quantity
   async deductQuantity(boardId: string, quantity: number, notes?: string): Promise<Board> {
     const board = await this.getBoardById(boardId);
     if (!board) throw new Error("Board not found");
@@ -128,12 +104,8 @@ export const boardService = {
     }
 
     const newQuantity = board.quantity - quantity;
+    const updated = await this.updateBoard(boardId, { quantity: newQuantity });
 
-    const updated = await this.updateBoard(boardId, {
-      quantity: newQuantity
-    });
-
-    // Record transaction
     await this.recordTransaction({
       board_id: boardId,
       quantity,
@@ -144,7 +116,7 @@ export const boardService = {
     return updated;
   },
 
-  // Sell board (deduct quantity)
+  // Sell board
   async sellBoard(boardId: string, quantity: number, customerName?: string): Promise<Board> {
     const board = await this.getBoardById(boardId);
     if (!board) throw new Error("Board not found");
@@ -154,12 +126,8 @@ export const boardService = {
     }
 
     const newQuantity = board.quantity - quantity;
+    const updated = await this.updateBoard(boardId, { quantity: newQuantity });
 
-    const updated = await this.updateBoard(boardId, {
-      quantity: newQuantity
-    });
-
-    // Record transaction
     await this.recordTransaction({
       board_id: boardId,
       quantity,
@@ -170,7 +138,7 @@ export const boardService = {
     return updated;
   },
 
-  // Create board from completed job (automatic)
+  // Create/Update from Job
   async createBoardFromJob(jobData: {
     board_name: string;
     type: string;
@@ -178,7 +146,7 @@ export const boardService = {
     job_card_number: string;
     quantity?: number;
   }): Promise<Board> {
-    // Check if board with same name, type, and color already exists
+    // Check for existing board
     const { data: existingBoards } = await supabase
       .from("boards")
       .select("*")
@@ -188,7 +156,6 @@ export const boardService = {
       .limit(1);
 
     if (existingBoards && existingBoards.length > 0) {
-      // Board exists, add to quantity
       const board = existingBoards[0];
       const quantity = jobData.quantity || 1;
       return await this.addQuantity(
@@ -197,7 +164,6 @@ export const boardService = {
         `Manufactured from job ${jobData.job_card_number}`
       );
     } else {
-      // Create new board
       const newBoard = await this.createBoard({
         board_name: jobData.board_name,
         type: jobData.type,
@@ -205,20 +171,17 @@ export const boardService = {
         quantity: jobData.quantity || 1,
         minimum_quantity: jobData.type.toLowerCase().includes("dinrail") ? 5 : 2
       });
-
-      // Record transaction
-      await this.recordTransaction({
-        board_id: newBoard.id,
-        quantity: jobData.quantity || 1,
-        transaction_type: "manufacture",
-        notes: `Manufactured from job ${jobData.job_card_number}`
-      });
-
+      
+      // Update the transaction note to be specific
+      // The createBoard already adds an "Initial stock" transaction
+      // We might want to add another one or just rely on that.
+      // But createBoard puts "Initial stock". 
+      // Let's just return it. 
       return newBoard;
     }
   },
 
-  // Get low stock boards
+  // Get low stock
   async getLowStockBoards(): Promise<Board[]> {
     const { data, error } = await supabase
       .from("boards")
@@ -226,27 +189,20 @@ export const boardService = {
       .filter("quantity", "lte", "minimum_quantity")
       .order("quantity", { ascending: true });
 
-    if (error) {
-      console.error("Error fetching low stock boards:", error);
-      throw error;
-    }
-
+    if (error) throw error;
     return data || [];
   },
 
-  // Record board transaction
+  // Record transaction
   async recordTransaction(transaction: Omit<BoardTransactionInsert, "id" | "created_at">): Promise<void> {
     const { error } = await supabase
       .from("board_transactions")
       .insert([transaction]);
 
-    if (error) {
-      console.error("Error recording transaction:", error);
-      throw error;
-    }
+    if (error) throw error;
   },
 
-  // Get board transactions
+  // Get transactions
   async getBoardTransactions(boardId: string): Promise<BoardTransaction[]> {
     const { data, error } = await supabase
       .from("board_transactions")
@@ -254,12 +210,7 @@ export const boardService = {
       .eq("board_id", boardId)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching transactions:", error);
-      throw error;
-    }
-
+    if (error) throw error;
     return data || [];
   }
 };
-</![CDATA[>

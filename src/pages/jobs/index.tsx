@@ -43,6 +43,7 @@ import { jobService } from "@/services/jobService";
 import { storageService } from "@/services/storageService";
 import { materialService } from "@/services/materialService";
 import { pdfService } from "@/services/pdfService";
+import { boardService } from "@/services/boardService";
 import type { Material } from "@/types";
 
 export default function JobsPage() {
@@ -315,12 +316,40 @@ export default function JobsPage() {
       );
       
       console.log("✅ Status update successful"); // Debug log
+
+      // Automatically add to finished boards inventory when job is completed
+      if (type === "assembling" && status === "Completed") {
+        const job = jobs.find(j => j.id === id);
+        if (job) {
+          try {
+            await boardService.createBoardFromJob({
+              board_name: job.boardName || job.jobName,
+              type: job.boardType,
+              color: job.boardColor || "Standard",
+              job_card_number: job.jobCardNumber,
+              quantity: 1
+            });
+            toast({
+              title: "Inventory Updated",
+              description: "Board added to Finished Boards inventory automatically.",
+            });
+          } catch (invError) {
+            console.error("Failed to update inventory:", invError);
+            toast({
+              title: "Warning",
+              description: "Job completed but failed to update inventory.",
+              variant: "destructive",
+            });
+          }
+        }
+      }
+
       await loadJobs();
       
       if (type === "assembling" && status === "Completed") {
         toast({
           title: "Job Completed!",
-          description: "Board has been added to Finished Boards inventory.",
+          description: "Job has been marked as completed successfully.",
         });
       } else {
         toast({

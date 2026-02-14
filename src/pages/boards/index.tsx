@@ -1,4 +1,3 @@
-<![CDATA[
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -56,7 +55,6 @@ export default function BoardsPage() {
   const [transactions, setTransactions] = useState<BoardTransaction[]>([]);
   const { toast } = useToast();
 
-  // Form states
   const [formData, setFormData] = useState({
     board_name: "",
     type: "Dinrail" as string,
@@ -296,7 +294,6 @@ export default function BoardsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Finished Boards Inventory</h1>
@@ -310,7 +307,6 @@ export default function BoardsPage() {
           </Button>
         </div>
 
-        {/* Low Stock Alert */}
         {lowStockBoards.length > 0 && (
           <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
             <CardHeader>
@@ -339,7 +335,6 @@ export default function BoardsPage() {
           </Card>
         )}
 
-        {/* Boards Table */}
         <Card>
           <CardHeader>
             <CardTitle>All Boards</CardTitle>
@@ -441,7 +436,6 @@ export default function BoardsPage() {
           </CardContent>
         </Card>
 
-        {/* Add Board Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -531,7 +525,6 @@ export default function BoardsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Board Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -601,7 +594,6 @@ export default function BoardsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Quantity Operation Dialog */}
         <Dialog open={isQuantityDialogOpen} onOpenChange={setIsQuantityDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -647,7 +639,6 @@ export default function BoardsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Sell Board Dialog */}
         <Dialog open={isSellDialogOpen} onOpenChange={setIsSellDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -687,7 +678,6 @@ export default function BoardsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Transactions History Dialog */}
         <Dialog
           open={isTransactionsDialogOpen}
           onOpenChange={setIsTransactionsDialogOpen}
@@ -752,4 +742,3 @@ export default function BoardsPage() {
     </DashboardLayout>
   );
 }
-</![CDATA[>
