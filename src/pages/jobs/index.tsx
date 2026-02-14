@@ -981,7 +981,7 @@ export default function JobsPage() {
                           <Button
                             className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-6 text-base"
                             onClick={() => {
-                              console.log("🔵 BUTTON CLICKED! Starting fabrication for job:", job.id);
+                              console.log("🔴 BUTTON CLICKED! Job:", job.id);
                               handleUpdateStatus(job.id, "fabrication", "In Progress");
                             }}
                             type="button"
