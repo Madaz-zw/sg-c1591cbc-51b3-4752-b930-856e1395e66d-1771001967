@@ -60,7 +60,7 @@ export default function BoardsPage() {
     type: "Dinrail" as string,
     color: "",
     quantity: 1,
-    minimum_quantity: 5,
+    min_threshold: 5,
   });
 
   const [quantityOperation, setQuantityOperation] = useState<"add" | "deduct">("add");
@@ -128,7 +128,7 @@ export default function BoardsPage() {
         board_name: formData.board_name,
         type: formData.type,
         color: formData.color,
-        minimum_quantity: formData.minimum_quantity,
+        min_threshold: formData.min_threshold,
       });
       toast({
         title: "Success",
@@ -251,7 +251,7 @@ export default function BoardsPage() {
       type: board.type,
       color: board.color,
       quantity: board.quantity,
-      minimum_quantity: board.minimum_quantity,
+      min_threshold: board.min_threshold,
     });
     setIsEditDialogOpen(true);
   };
@@ -277,14 +277,14 @@ export default function BoardsPage() {
       type: "Dinrail",
       color: "",
       quantity: 1,
-      minimum_quantity: 5,
+      min_threshold: 5,
     });
   };
 
   const getStockStatus = (board: Board) => {
     if (board.quantity === 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
-    } else if (board.quantity <= board.minimum_quantity) {
+    } else if (board.quantity <= board.min_threshold) {
       return <Badge className="bg-yellow-500">Low Stock</Badge>;
     } else {
       return <Badge className="bg-green-500">In Stock</Badge>;
@@ -326,7 +326,7 @@ export default function BoardsPage() {
                       {board.board_name} ({board.type} - {board.color})
                     </span>
                     <Badge variant="outline" className="bg-white dark:bg-gray-800">
-                      {board.quantity} units (Min: {board.minimum_quantity})
+                      {board.quantity} units (Min: {board.min_threshold})
                     </Badge>
                   </li>
                 ))}
@@ -371,7 +371,7 @@ export default function BoardsPage() {
                       <TableCell className="text-right font-semibold">
                         {board.quantity}
                       </TableCell>
-                      <TableCell className="text-right">{board.minimum_quantity}</TableCell>
+                      <TableCell className="text-right">{board.min_threshold}</TableCell>
                       <TableCell>{getStockStatus(board)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -464,7 +464,7 @@ export default function BoardsPage() {
                     setFormData({
                       ...formData,
                       type: value,
-                      minimum_quantity: value.toLowerCase().includes("dinrail") ? 5 : 2,
+                      min_threshold: value.toLowerCase().includes("dinrail") ? 5 : 2,
                     })
                   }
                 >
@@ -501,16 +501,16 @@ export default function BoardsPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="minimum_quantity">Minimum Quantity Alert</Label>
+                <Label htmlFor="min_threshold">Minimum Quantity Alert</Label>
                 <Input
-                  id="minimum_quantity"
+                  id="min_threshold"
                   type="number"
                   min="1"
-                  value={formData.minimum_quantity}
+                  value={formData.min_threshold}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      minimum_quantity: parseInt(e.target.value) || 1,
+                      min_threshold: parseInt(e.target.value) || 1,
                     })
                   }
                 />
@@ -570,16 +570,16 @@ export default function BoardsPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="edit_minimum_quantity">Minimum Quantity Alert</Label>
+                <Label htmlFor="edit_min_threshold">Minimum Quantity Alert</Label>
                 <Input
-                  id="edit_minimum_quantity"
+                  id="edit_min_threshold"
                   type="number"
                   min="1"
-                  value={formData.minimum_quantity}
+                  value={formData.min_threshold}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      minimum_quantity: parseInt(e.target.value) || 1,
+                      min_threshold: parseInt(e.target.value) || 1,
                     })
                   }
                 />

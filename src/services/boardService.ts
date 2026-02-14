@@ -169,7 +169,7 @@ export const boardService = {
         type: jobData.type,
         color: jobData.color,
         quantity: jobData.quantity || 1,
-        minimum_quantity: jobData.type.toLowerCase().includes("dinrail") ? 5 : 2
+        min_threshold: jobData.type.toLowerCase().includes("dinrail") ? 5 : 2
       });
       
       // Update the transaction note to be specific
@@ -186,7 +186,7 @@ export const boardService = {
     const { data, error } = await supabase
       .from("boards")
       .select("*")
-      .filter("quantity", "lte", "minimum_quantity")
+      .filter("quantity", "lte", "min_threshold")
       .order("quantity", { ascending: true });
 
     if (error) throw error;
@@ -208,6 +208,17 @@ export const boardService = {
       .from("board_transactions")
       .select("*")
       .eq("board_id", boardId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Get ALL transactions (for reports)
+  async getAllTransactions(): Promise<BoardTransaction[]> {
+    const { data, error } = await supabase
+      .from("board_transactions")
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
