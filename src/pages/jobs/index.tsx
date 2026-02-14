@@ -304,6 +304,8 @@ export default function JobsPage() {
     status: "Pending" | "In Progress" | "Completed"
   ) => {
     try {
+      console.log("🔵 Button clicked!", { id, type, status }); // Debug log
+      
       await jobService.updateJobStatus(
         id,
         type,
@@ -311,6 +313,8 @@ export default function JobsPage() {
         user?.id || "",
         user?.name || ""
       );
+      
+      console.log("✅ Status update successful"); // Debug log
       await loadJobs();
       
       if (type === "assembling" && status === "Completed") {
@@ -325,7 +329,7 @@ export default function JobsPage() {
         });
       }
     } catch (error) {
-      console.error("Failed to update job status:", error);
+      console.error("❌ Failed to update job status:", error);
       toast({
         title: "Error",
         description: "Failed to update job status",
