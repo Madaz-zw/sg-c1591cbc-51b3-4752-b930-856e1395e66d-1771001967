@@ -1,214 +1,265 @@
+<![CDATA[
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { Board, BoardTransaction } from "@/types";
 
-type BoardRow = Database["public"]["Tables"]["boards"]["Row"];
+type Board = Database["public"]["Tables"]["boards"]["Row"];
 type BoardInsert = Database["public"]["Tables"]["boards"]["Insert"];
 type BoardUpdate = Database["public"]["Tables"]["boards"]["Update"];
-type BoardTransactionRow = Database["public"]["Tables"]["board_transactions"]["Row"];
+type BoardTransaction = Database["public"]["Tables"]["board_transactions"]["Row"];
 type BoardTransactionInsert = Database["public"]["Tables"]["board_transactions"]["Insert"];
 
 export const boardService = {
-  // Get all boards
+  // Get all boards with their current quantities
   async getAllBoards(): Promise<Board[]> {
     const { data, error } = await supabase
       .from("boards")
       .select("*")
-      .order("type", { ascending: true });
+      .order("board_name", { ascending: true });
 
-    if (error) throw error;
-    return (data || []).map(this.mapToBoard);
+    if (error) {
+      console.error("Error fetching boards:", error);
+      throw error;
+    }
+
+    return data || [];
   },
 
-  // Create board
-  async createBoard(board: Omit<Board, "id">): Promise<Board> {
-    const insertData: BoardInsert = {
-      type: board.type,
-      color: board.color,
-      quantity: board.quantity,
-      min_threshold: board.minThreshold
-    };
-
+  // Get a single board by ID
+  async getBoardById(id: string): Promise<Board | null> {
     const { data, error } = await supabase
       .from("boards")
-      .insert(insertData)
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching board:", error);
+      throw error;
+    }
+
+    return data;
+  },
+
+  // Create a new board (manual addition)
+  async createBoard(board: Omit<BoardInsert, "id" | "created_at" | "updated_at">): Promise<Board> {
+    const { data, error } = await supabase
+      .from("boards")
+      .insert([board])
       .select()
       .single();
 
-    if (error) throw error;
-    return this.mapToBoard(data);
+    if (error) {
+      console.error("Error creating board:", error);
+      throw error;
+    }
+
+    // Record transaction
+    if (data && board.quantity > 0) {
+      await this.recordTransaction({
+        board_id: data.id,
+        quantity: board.quantity,
+        transaction_type: "add",
+        notes: "Initial stock"
+      });
+    }
+
+    return data;
   },
 
   // Update board
-  async updateBoard(id: string, updates: Partial<Board>): Promise<Board> {
-    const updateData: BoardUpdate = {};
-    if (updates.quantity !== undefined) updateData.quantity = updates.quantity;
-    if (updates.minThreshold !== undefined) updateData.min_threshold = updates.minThreshold;
-    if (updates.lastUpdated) updateData.updated_at = updates.lastUpdated;
-
+  async updateBoard(id: string, updates: BoardUpdate): Promise<Board> {
     const { data, error } = await supabase
       .from("boards")
-      .update(updateData)
+      .update(updates)
       .eq("id", id)
       .select()
       .single();
 
-    if (error) throw error;
-    return this.mapToBoard(data);
+    if (error) {
+      console.error("Error updating board:", error);
+      throw error;
+    }
+
+    return data;
   },
 
-  // Get low stock boards
-  async getLowStockBoards(): Promise<Board[]> {
-    const all = await this.getAllBoards();
-    return all.filter(b => b.quantity <= b.minThreshold);
+  // Delete board
+  async deleteBoard(id: string): Promise<void> {
+    const { error } = await supabase
+      .from("boards")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting board:", error);
+      throw error;
+    }
   },
 
-  // Board Transactions
-  async getAllTransactions(): Promise<BoardTransaction[]> {
-    const { data, error } = await supabase
-      .from("board_transactions")
-      .select("*")
-      .order("date", { ascending: false });
-
-    if (error) throw error;
-    return (data || []).map(this.mapToTransaction);
-  },
-
-  // Manufacture boards (add stock)
-  async manufactureBoard(
-    boardId: string,
-    quantity: number,
-    userId: string,
-    userName: string,
-    notes?: string
-  ): Promise<Board> {
+  // Add quantity to board (receive new stock)
+  async addQuantity(boardId: string, quantity: number, notes?: string): Promise<Board> {
     const board = await this.getBoardById(boardId);
     if (!board) throw new Error("Board not found");
 
-    // 1. Update board stock
-    const updatedBoard = await this.updateBoard(boardId, {
-      quantity: board.quantity + quantity,
-      lastUpdated: new Date().toISOString()
+    const newQuantity = board.quantity + quantity;
+
+    const updated = await this.updateBoard(boardId, {
+      quantity: newQuantity
     });
 
-    // 2. Create transaction
-    await this.createTransaction({
-      boardId,
-      type: "manufactured",
+    // Record transaction
+    await this.recordTransaction({
+      board_id: boardId,
       quantity,
-      userId,
-      userName,
-      date: new Date().toISOString(),
-      notes
+      transaction_type: "add",
+      notes: notes || "Stock added"
     });
 
-    return updatedBoard;
+    return updated;
   },
 
-  // Sell boards (reduce stock)
-  async sellBoard(
-    boardId: string,
-    quantity: number,
-    customerName: string,
-    userId: string,
-    userName: string,
-    notes?: string
-  ): Promise<Board> {
+  // Deduct quantity from board (sale/usage)
+  async deductQuantity(boardId: string, quantity: number, notes?: string): Promise<Board> {
     const board = await this.getBoardById(boardId);
     if (!board) throw new Error("Board not found");
 
     if (board.quantity < quantity) {
-      throw new Error("Insufficient stock");
+      throw new Error(`Insufficient quantity. Available: ${board.quantity}, Requested: ${quantity}`);
     }
 
-    // 1. Update board stock
-    const updatedBoard = await this.updateBoard(boardId, {
-      quantity: board.quantity - quantity,
-      lastUpdated: new Date().toISOString()
+    const newQuantity = board.quantity - quantity;
+
+    const updated = await this.updateBoard(boardId, {
+      quantity: newQuantity
     });
 
-    // 2. Create transaction
-    await this.createTransaction({
-      boardId,
-      type: "sold",
+    // Record transaction
+    await this.recordTransaction({
+      board_id: boardId,
       quantity,
-      customerName,
-      userId,
-      userName,
-      date: new Date().toISOString(),
-      notes
+      transaction_type: "deduct",
+      notes: notes || "Stock deducted"
     });
 
-    return updatedBoard;
+    return updated;
   },
 
-  async createTransaction(transaction: Omit<BoardTransaction, "id">): Promise<BoardTransaction> {
-    const insertData: BoardTransactionInsert = {
-      board_id: transaction.boardId,
-      board_name: transaction.boardName,
-      type: transaction.type,
-      quantity: transaction.quantity,
-      customer_name: transaction.customerName,
-      user_id: transaction.userId,
-      user_name: transaction.userName,
-      date: transaction.date,
-      notes: transaction.notes
-    };
+  // Sell board (deduct quantity)
+  async sellBoard(boardId: string, quantity: number, customerName?: string): Promise<Board> {
+    const board = await this.getBoardById(boardId);
+    if (!board) throw new Error("Board not found");
 
+    if (board.quantity < quantity) {
+      throw new Error(`Insufficient quantity. Available: ${board.quantity}, Requested: ${quantity}`);
+    }
+
+    const newQuantity = board.quantity - quantity;
+
+    const updated = await this.updateBoard(boardId, {
+      quantity: newQuantity
+    });
+
+    // Record transaction
+    await this.recordTransaction({
+      board_id: boardId,
+      quantity,
+      transaction_type: "sale",
+      notes: customerName ? `Sold to ${customerName}` : "Sold"
+    });
+
+    return updated;
+  },
+
+  // Create board from completed job (automatic)
+  async createBoardFromJob(jobData: {
+    board_name: string;
+    type: string;
+    color: string;
+    job_card_number: string;
+    quantity?: number;
+  }): Promise<Board> {
+    // Check if board with same name, type, and color already exists
+    const { data: existingBoards } = await supabase
+      .from("boards")
+      .select("*")
+      .eq("board_name", jobData.board_name)
+      .eq("type", jobData.type)
+      .eq("color", jobData.color)
+      .limit(1);
+
+    if (existingBoards && existingBoards.length > 0) {
+      // Board exists, add to quantity
+      const board = existingBoards[0];
+      const quantity = jobData.quantity || 1;
+      return await this.addQuantity(
+        board.id,
+        quantity,
+        `Manufactured from job ${jobData.job_card_number}`
+      );
+    } else {
+      // Create new board
+      const newBoard = await this.createBoard({
+        board_name: jobData.board_name,
+        type: jobData.type,
+        color: jobData.color,
+        quantity: jobData.quantity || 1,
+        minimum_quantity: jobData.type.toLowerCase().includes("dinrail") ? 5 : 2
+      });
+
+      // Record transaction
+      await this.recordTransaction({
+        board_id: newBoard.id,
+        quantity: jobData.quantity || 1,
+        transaction_type: "manufacture",
+        notes: `Manufactured from job ${jobData.job_card_number}`
+      });
+
+      return newBoard;
+    }
+  },
+
+  // Get low stock boards
+  async getLowStockBoards(): Promise<Board[]> {
+    const { data, error } = await supabase
+      .from("boards")
+      .select("*")
+      .filter("quantity", "lte", "minimum_quantity")
+      .order("quantity", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching low stock boards:", error);
+      throw error;
+    }
+
+    return data || [];
+  },
+
+  // Record board transaction
+  async recordTransaction(transaction: Omit<BoardTransactionInsert, "id" | "created_at">): Promise<void> {
+    const { error } = await supabase
+      .from("board_transactions")
+      .insert([transaction]);
+
+    if (error) {
+      console.error("Error recording transaction:", error);
+      throw error;
+    }
+  },
+
+  // Get board transactions
+  async getBoardTransactions(boardId: string): Promise<BoardTransaction[]> {
     const { data, error } = await supabase
       .from("board_transactions")
-      .insert(insertData)
-      .select()
-      .single();
+      .select("*")
+      .eq("board_id", boardId)
+      .order("created_at", { ascending: false });
 
-    if (error) throw error;
-    return this.mapToTransaction(data);
-  },
-
-  // Initialize default boards
-  async initializeBoards(): Promise<void> {
-    const existing = await this.getAllBoards();
-    if (existing.length > 0) return;
-
-    const defaultBoards = [
-      { type: "Surface Mounted", color: "Orange", quantity: 0, minThreshold: 5 },
-      { type: "Surface Mounted", color: "White", quantity: 0, minThreshold: 5 },
-      { type: "Surface Mounted", color: "Grey", quantity: 0, minThreshold: 5 },
-      { type: "Mini-Flush", color: "Red", quantity: 0, minThreshold: 2 },
-      { type: "Mini-Flush", color: "Black", quantity: 0, minThreshold: 2 },
-      { type: "Watertight", color: "Grey", quantity: 0, minThreshold: 5 },
-      { type: "Enclosure", color: "White", quantity: 0, minThreshold: 5 }
-    ];
-
-    for (const board of defaultBoards) {
-      await this.createBoard(board as any);
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      throw error;
     }
-  },
 
-  // Mappers
-  mapToBoard(row: BoardRow): Board {
-    return {
-      id: row.id,
-      type: row.type as "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure",
-      color: row.color,
-      quantity: row.quantity,
-      minThreshold: row.min_threshold,
-      lastUpdated: row.updated_at || new Date().toISOString()
-    };
-  },
-
-  mapToTransaction(row: BoardTransactionRow): BoardTransaction {
-    return {
-      id: row.id,
-      boardId: row.board_id,
-      boardName: row.board_name,
-      type: row.type as "manufactured" | "sold",
-      quantity: row.quantity,
-      customerName: row.customer_name || undefined,
-      userId: row.user_id,
-      userName: row.user_name,
-      date: row.date,
-      notes: row.notes || undefined
-    };
+    return data || [];
   }
 };
+</![CDATA[>

@@ -1,33 +1,24 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { useAuth } from "@/contexts/AuthContext";
+<![CDATA[
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layouts/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { SEO } from "@/components/SEO";
+import { Label } from "@/components/ui/label";
 import {
-  CircuitBoard,
-  Plus,
-  Search,
-  TrendingUp,
-  Package,
-  ShoppingCart,
-  AlertTriangle
-} from "lucide-react";
-import { Board } from "@/types";
-import { hasPermission } from "@/lib/mockAuth";
-import { boardService } from "@/services/boardService";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -43,44 +34,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Minus, ShoppingCart, Package, AlertTriangle, Edit, Trash2, History } from "lucide-react";
+import { boardService } from "@/services/boardService";
+import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+type Board = Database["public"]["Tables"]["boards"]["Row"];
+type BoardTransaction = Database["public"]["Tables"]["board_transactions"]["Row"];
 
 export default function BoardsPage() {
-  const { user, isAuthenticated } = useAuth();
-  const router = useRouter();
   const [boards, setBoards] = useState<Board[]>([]);
+  const [lowStockBoards, setLowStockBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Dialog States
-  const [manufactureDialogOpen, setManufactureDialogOpen] = useState(false);
-  const [sellDialogOpen, setSellDialogOpen] = useState(false);
-  const [newBoardDialogOpen, setNewBoardDialogOpen] = useState(false);
-
-  // Form States
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isQuantityDialogOpen, setIsQuantityDialogOpen] = useState(false);
+  const [isSellDialogOpen, setIsSellDialogOpen] = useState(false);
+  const [isTransactionsDialogOpen, setIsTransactionsDialogOpen] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [customerName, setCustomerName] = useState("");
-  const [notes, setNotes] = useState("");
+  const [transactions, setTransactions] = useState<BoardTransaction[]>([]);
+  const { toast } = useToast();
 
-  const [newBoard, setNewBoard] = useState({
-    type: "Surface Mounted" as "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure",
+  // Form states
+  const [formData, setFormData] = useState({
+    board_name: "",
+    type: "Dinrail" as string,
     color: "",
-    minThreshold: 5
+    quantity: 1,
+    minimum_quantity: 5,
   });
 
+  const [quantityOperation, setQuantityOperation] = useState<"add" | "deduct">("add");
+  const [quantityAmount, setQuantityAmount] = useState(1);
+  const [operationNotes, setOperationNotes] = useState("");
+  const [customerName, setCustomerName] = useState("");
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-
-    if (!hasPermission(user, "view_finished_boards")) {
-      router.push("/dashboard");
-      return;
-    }
-
     loadBoards();
-  }, [isAuthenticated, user, router]);
+    loadLowStockBoards();
+  }, []);
 
   const loadBoards = async () => {
     try {
@@ -88,378 +81,675 @@ export default function BoardsPage() {
       const data = await boardService.getAllBoards();
       setBoards(data);
     } catch (error) {
-      console.error("Failed to load boards:", error);
-      alert("Failed to load boards");
+      console.error("Error loading boards:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load boards",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateBoard = async () => {
-    if (!newBoard.color) {
-      alert("Please enter a board color");
-      return;
-    }
-
+  const loadLowStockBoards = async () => {
     try {
-      await boardService.createBoard({
-        type: newBoard.type,
-        color: newBoard.color,
-        quantity: 0,
-        minThreshold: newBoard.minThreshold,
-        lastUpdated: new Date().toISOString()
+      const data = await boardService.getLowStockBoards();
+      setLowStockBoards(data);
+    } catch (error) {
+      console.error("Error loading low stock boards:", error);
+    }
+  };
+
+  const handleAddBoard = async () => {
+    try {
+      await boardService.createBoard(formData);
+      toast({
+        title: "Success",
+        description: "Board added successfully",
       });
-
-      await loadBoards();
-      setNewBoard({ type: "Surface Mounted", color: "", minThreshold: 5 });
-      setNewBoardDialogOpen(false);
+      setIsAddDialogOpen(false);
+      resetForm();
+      loadBoards();
+      loadLowStockBoards();
     } catch (error) {
-      console.error("Failed to create board:", error);
-      alert("Failed to create board");
+      console.error("Error adding board:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add board",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleManufacture = async () => {
-    if (!selectedBoard || quantity < 1) return;
+  const handleEditBoard = async () => {
+    if (!selectedBoard) return;
 
     try {
-      await boardService.manufactureBoard(
-        selectedBoard.id,
-        quantity,
-        user?.id || "",
-        user?.name || "",
-        notes
-      );
-
-      await loadBoards();
-      setQuantity(1);
-      setNotes("");
+      await boardService.updateBoard(selectedBoard.id, {
+        board_name: formData.board_name,
+        type: formData.type,
+        color: formData.color,
+        minimum_quantity: formData.minimum_quantity,
+      });
+      toast({
+        title: "Success",
+        description: "Board updated successfully",
+      });
+      setIsEditDialogOpen(false);
       setSelectedBoard(null);
-      setManufactureDialogOpen(false);
+      resetForm();
+      loadBoards();
+      loadLowStockBoards();
     } catch (error) {
-      console.error("Failed to manufacture board:", error);
-      alert("Failed to manufacture board");
+      console.error("Error updating board:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update board",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleSell = async () => {
-    if (!selectedBoard || quantity < 1 || !customerName) {
-      alert("Please fill in all required fields");
-      return;
-    }
-
-    if (selectedBoard.quantity < quantity) {
-      alert("Insufficient stock!");
-      return;
-    }
+  const handleQuantityOperation = async () => {
+    if (!selectedBoard) return;
 
     try {
-      await boardService.sellBoard(
-        selectedBoard.id,
-        quantity,
-        customerName,
-        user?.id || "",
-        user?.name || "",
-        notes
-      );
+      if (quantityOperation === "add") {
+        await boardService.addQuantity(selectedBoard.id, quantityAmount, operationNotes);
+        toast({
+          title: "Success",
+          description: `Added ${quantityAmount} units to ${selectedBoard.board_name}`,
+        });
+      } else {
+        await boardService.deductQuantity(selectedBoard.id, quantityAmount, operationNotes);
+        toast({
+          title: "Success",
+          description: `Deducted ${quantityAmount} units from ${selectedBoard.board_name}`,
+        });
+      }
+      setIsQuantityDialogOpen(false);
+      setSelectedBoard(null);
+      setQuantityAmount(1);
+      setOperationNotes("");
+      loadBoards();
+      loadLowStockBoards();
+    } catch (error: any) {
+      console.error("Error updating quantity:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update quantity",
+        variant: "destructive",
+      });
+    }
+  };
 
-      await loadBoards();
-      setQuantity(1);
+  const handleSellBoard = async () => {
+    if (!selectedBoard) return;
+
+    try {
+      await boardService.sellBoard(selectedBoard.id, quantityAmount, customerName);
+      toast({
+        title: "Success",
+        description: `Sold ${quantityAmount} units of ${selectedBoard.board_name}`,
+      });
+      setIsSellDialogOpen(false);
+      setSelectedBoard(null);
+      setQuantityAmount(1);
       setCustomerName("");
-      setNotes("");
-      setSelectedBoard(null);
-      setSellDialogOpen(false);
-    } catch (error) {
-      console.error("Failed to sell board:", error);
-      alert("Failed to sell board");
+      loadBoards();
+      loadLowStockBoards();
+    } catch (error: any) {
+      console.error("Error selling board:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sell board",
+        variant: "destructive",
+      });
     }
   };
 
-  const canManage = hasPermission(user, "manage_finished_boards");
+  const handleDeleteBoard = async (board: Board) => {
+    if (!confirm(`Are you sure you want to delete ${board.board_name}?`)) return;
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-slate-600 dark:text-slate-400">Loading boards...</div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+    try {
+      await boardService.deleteBoard(board.id);
+      toast({
+        title: "Success",
+        description: "Board deleted successfully",
+      });
+      loadBoards();
+      loadLowStockBoards();
+    } catch (error) {
+      console.error("Error deleting board:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete board",
+        variant: "destructive",
+      });
+    }
+  };
 
-  const lowStockBoards = boards.filter(b => b.quantity <= b.minThreshold);
-  const totalStock = boards.reduce((acc, curr) => acc + curr.quantity, 0);
+  const handleViewTransactions = async (board: Board) => {
+    try {
+      setSelectedBoard(board);
+      const data = await boardService.getBoardTransactions(board.id);
+      setTransactions(data);
+      setIsTransactionsDialogOpen(true);
+    } catch (error) {
+      console.error("Error loading transactions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load transaction history",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openEditDialog = (board: Board) => {
+    setSelectedBoard(board);
+    setFormData({
+      board_name: board.board_name,
+      type: board.type,
+      color: board.color,
+      quantity: board.quantity,
+      minimum_quantity: board.minimum_quantity,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const openQuantityDialog = (board: Board, operation: "add" | "deduct") => {
+    setSelectedBoard(board);
+    setQuantityOperation(operation);
+    setQuantityAmount(1);
+    setOperationNotes("");
+    setIsQuantityDialogOpen(true);
+  };
+
+  const openSellDialog = (board: Board) => {
+    setSelectedBoard(board);
+    setQuantityAmount(1);
+    setCustomerName("");
+    setIsSellDialogOpen(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      board_name: "",
+      type: "Dinrail",
+      color: "",
+      quantity: 1,
+      minimum_quantity: 5,
+    });
+  };
+
+  const getStockStatus = (board: Board) => {
+    if (board.quantity === 0) {
+      return <Badge variant="destructive">Out of Stock</Badge>;
+    } else if (board.quantity <= board.minimum_quantity) {
+      return <Badge className="bg-yellow-500">Low Stock</Badge>;
+    } else {
+      return <Badge className="bg-green-500">In Stock</Badge>;
+    }
+  };
 
   return (
-    <>
-      <SEO
-        title="Finished Boards - Josm Electrical"
-        description="Inventory of finished dinrail and hynman boards"
-      />
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Finished Boards</h1>
-              <p className="text-slate-600 dark:text-slate-400 mt-1">
-                Manage stock of Dinrail and Hynman boards
-              </p>
-            </div>
-            {canManage && (
-              <Dialog open={newBoardDialogOpen} onOpenChange={setNewBoardDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700">
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Board Type
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Board Type</DialogTitle>
-                    <DialogDescription>Define a new board configuration</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Board Type</Label>
-                      <Select
-                        value={newBoard.type}
-                        onValueChange={(v: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure") => setNewBoard({ ...newBoard, type: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Surface Mounted">Surface Mounted</SelectItem>
-                          <SelectItem value="Mini-Flush">Mini-Flush</SelectItem>
-                          <SelectItem value="Watertight">Watertight</SelectItem>
-                          <SelectItem value="Enclosure">Enclosure</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="color">Color</Label>
-                      <Input
-                        id="color"
-                        placeholder="e.g., Orange, White, Grey"
-                        value={newBoard.color}
-                        onChange={(e) => setNewBoard({ ...newBoard, color: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="minThreshold">Low Stock Alert Level</Label>
-                      <Input
-                        id="minThreshold"
-                        type="number"
-                        min="1"
-                        value={newBoard.minThreshold}
-                        onChange={(e) => setNewBoard({ ...newBoard, minThreshold: parseInt(e.target.value) || 0 })}
-                      />
-                    </div>
-                    <Button onClick={handleCreateBoard} className="w-full">
-                      Add Board Type
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Finished Boards Inventory</h1>
+            <p className="text-muted-foreground">
+              Manage finished electrical panel boards
+            </p>
           </div>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Package className="mr-2 h-4 w-4" />
+            Add New Board
+          </Button>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Total Stock
-                </CardTitle>
-                <Package className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-white">{totalStock}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Board Types
-                </CardTitle>
-                <CircuitBoard className="h-4 w-4 text-purple-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-purple-600">{boards.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Low Stock Alerts
-                </CardTitle>
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{lowStockBoards.length}</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
+        {/* Low Stock Alert */}
+        {lowStockBoards.length > 0 && (
+          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
             <CardHeader>
-              <CardTitle>Inventory List</CardTitle>
+              <CardTitle className="flex items-center text-yellow-700 dark:text-yellow-300">
+                <AlertTriangle className="mr-2 h-5 w-5" />
+                Low Stock Alert
+              </CardTitle>
+              <CardDescription>
+                {lowStockBoards.length} board(s) are running low on stock
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              <ul className="space-y-2">
+                {lowStockBoards.map((board) => (
+                  <li key={board.id} className="flex justify-between items-center">
+                    <span className="font-medium">
+                      {board.board_name} ({board.type} - {board.color})
+                    </span>
+                    <Badge variant="outline" className="bg-white dark:bg-gray-800">
+                      {board.quantity} units (Min: {board.minimum_quantity})
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Boards Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>All Boards</CardTitle>
+            <CardDescription>
+              View and manage your finished boards inventory
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-8">Loading...</div>
+            ) : boards.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No boards found. Add your first board to get started.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Board Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Color</TableHead>
+                    <TableHead className="text-right">Quantity</TableHead>
+                    <TableHead className="text-right">Min. Qty</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {boards.map((board) => (
+                    <TableRow key={board.id}>
+                      <TableCell className="font-medium">{board.board_name}</TableCell>
+                      <TableCell>{board.type}</TableCell>
+                      <TableCell>{board.color}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {board.quantity}
+                      </TableCell>
+                      <TableCell className="text-right">{board.minimum_quantity}</TableCell>
+                      <TableCell>{getStockStatus(board)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openQuantityDialog(board, "add")}
+                            title="Add Stock"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openQuantityDialog(board, "deduct")}
+                            title="Deduct Stock"
+                            disabled={board.quantity === 0}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openSellDialog(board)}
+                            title="Sell Board"
+                            disabled={board.quantity === 0}
+                          >
+                            <ShoppingCart className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewTransactions(board)}
+                            title="View History"
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditDialog(board)}
+                            title="Edit Board"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteBoard(board)}
+                            title="Delete Board"
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Add Board Dialog */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Board</DialogTitle>
+              <DialogDescription>
+                Add a new finished board to your inventory
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="board_name">Board Name</Label>
+                <Input
+                  id="board_name"
+                  value={formData.board_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, board_name: e.target.value })
+                  }
+                  placeholder="e.g., Main Distribution Board"
+                />
+              </div>
+              <div>
+                <Label htmlFor="type">Type</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      type: value,
+                      minimum_quantity: value.toLowerCase().includes("dinrail") ? 5 : 2,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dinrail">Dinrail</SelectItem>
+                    <SelectItem value="Hynman">Hynman</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="color">Color</Label>
+                <Input
+                  id="color"
+                  value={formData.color}
+                  onChange={(e) =>
+                    setFormData({ ...formData, color: e.target.value })
+                  }
+                  placeholder="e.g., Grey, White, Black"
+                />
+              </div>
+              <div>
+                <Label htmlFor="quantity">Initial Quantity</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="0"
+                  value={formData.quantity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="minimum_quantity">Minimum Quantity Alert</Label>
+                <Input
+                  id="minimum_quantity"
+                  type="number"
+                  min="1"
+                  value={formData.minimum_quantity}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      minimum_quantity: parseInt(e.target.value) || 1,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddBoard}>Add Board</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Board Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Board</DialogTitle>
+              <DialogDescription>Update board information</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit_board_name">Board Name</Label>
+                <Input
+                  id="edit_board_name"
+                  value={formData.board_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, board_name: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_type">Type</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, type: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dinrail">Dinrail</SelectItem>
+                    <SelectItem value="Hynman">Hynman</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit_color">Color</Label>
+                <Input
+                  id="edit_color"
+                  value={formData.color}
+                  onChange={(e) =>
+                    setFormData({ ...formData, color: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_minimum_quantity">Minimum Quantity Alert</Label>
+                <Input
+                  id="edit_minimum_quantity"
+                  type="number"
+                  min="1"
+                  value={formData.minimum_quantity}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      minimum_quantity: parseInt(e.target.value) || 1,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleEditBoard}>Update Board</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Quantity Operation Dialog */}
+        <Dialog open={isQuantityDialogOpen} onOpenChange={setIsQuantityDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {quantityOperation === "add" ? "Add Stock" : "Deduct Stock"}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedBoard?.board_name} - Current: {selectedBoard?.quantity} units
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="quantity_amount">Quantity</Label>
+                <Input
+                  id="quantity_amount"
+                  type="number"
+                  min="1"
+                  value={quantityAmount}
+                  onChange={(e) => setQuantityAmount(parseInt(e.target.value) || 1)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="operation_notes">Notes (Optional)</Label>
+                <Input
+                  id="operation_notes"
+                  value={operationNotes}
+                  onChange={(e) => setOperationNotes(e.target.value)}
+                  placeholder="e.g., Received from factory"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsQuantityDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleQuantityOperation}>
+                {quantityOperation === "add" ? "Add" : "Deduct"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Sell Board Dialog */}
+        <Dialog open={isSellDialogOpen} onOpenChange={setIsSellDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Sell Board</DialogTitle>
+              <DialogDescription>
+                {selectedBoard?.board_name} - Available: {selectedBoard?.quantity} units
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="sell_quantity">Quantity to Sell</Label>
+                <Input
+                  id="sell_quantity"
+                  type="number"
+                  min="1"
+                  max={selectedBoard?.quantity || 1}
+                  value={quantityAmount}
+                  onChange={(e) => setQuantityAmount(parseInt(e.target.value) || 1)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer_name">Customer Name (Optional)</Label>
+                <Input
+                  id="customer_name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="e.g., ABC Company"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsSellDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSellBoard}>Sell</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Transactions History Dialog */}
+        <Dialog
+          open={isTransactionsDialogOpen}
+          onOpenChange={setIsTransactionsDialogOpen}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Transaction History</DialogTitle>
+              <DialogDescription>
+                {selectedBoard?.board_name} - {selectedBoard?.type} ({selectedBoard?.color})
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-96 overflow-y-auto">
+              {transactions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No transactions found
+                </div>
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Color</TableHead>
-                      <TableHead>Stock Level</TableHead>
-                      <TableHead>Status</TableHead>
-                      {canManage && <TableHead className="text-right">Actions</TableHead>}
+                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {boards.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={canManage ? 5 : 4} className="text-center py-8 text-slate-500">
-                          No boards found in inventory
+                    {transactions.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell>
+                          {new Date(transaction.created_at).toLocaleDateString()}
                         </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              transaction.transaction_type === "add" ||
+                              transaction.transaction_type === "manufacture"
+                                ? "default"
+                                : "destructive"
+                            }
+                          >
+                            {transaction.transaction_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {transaction.transaction_type === "add" ||
+                          transaction.transaction_type === "manufacture"
+                            ? "+"
+                            : "-"}
+                          {transaction.quantity}
+                        </TableCell>
+                        <TableCell>{transaction.notes || "-"}</TableCell>
                       </TableRow>
-                    ) : (
-                      boards.map((board) => (
-                        <TableRow key={board.id}>
-                          <TableCell className="font-medium">{board.type}</TableCell>
-                          <TableCell>{board.color}</TableCell>
-                          <TableCell>
-                            <span className={`font-bold ${
-                              board.quantity <= board.minThreshold ? "text-red-600" : "text-slate-900 dark:text-white"
-                            }`}>
-                              {board.quantity}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {board.quantity <= board.minThreshold ? (
-                              <Badge variant="destructive">Low Stock</Badge>
-                            ) : (
-                              <Badge className="bg-green-500 hover:bg-green-600">In Stock</Badge>
-                            )}
-                          </TableCell>
-                          {canManage && (
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setSelectedBoard(board);
-                                    setManufactureDialogOpen(true);
-                                  }}
-                                >
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Add Stock
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  className="bg-blue-600 hover:bg-blue-700"
-                                  onClick={() => {
-                                    setSelectedBoard(board);
-                                    setSellDialogOpen(true);
-                                  }}
-                                >
-                                  <ShoppingCart className="h-3 w-3 mr-1" />
-                                  Sell
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Manufacture Dialog */}
-          <Dialog open={manufactureDialogOpen} onOpenChange={setManufactureDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Stock (Manufactured)</DialogTitle>
-                <DialogDescription>
-                  Adding stock for {selectedBoard?.type} - {selectedBoard?.color}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Quantity Manufactured</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Notes (Optional)</Label>
-                  <Textarea
-                    placeholder="e.g., Batch #123"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </div>
-                <Button onClick={handleManufacture} className="w-full">
-                  Update Stock
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Sell Dialog */}
-          <Dialog open={sellDialogOpen} onOpenChange={setSellDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Record Sale</DialogTitle>
-                <DialogDescription>
-                  Selling {selectedBoard?.type} - {selectedBoard?.color}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Quantity Sold</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max={selectedBoard?.quantity}
-                    value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Customer Name</Label>
-                  <Input
-                    placeholder="Enter customer name"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Notes (Optional)</Label>
-                  <Textarea
-                    placeholder="Additional sale details..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </div>
-                <Button onClick={handleSell} className="w-full">
-                  Confirm Sale
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </DashboardLayout>
-    </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DashboardLayout>
   );
 }
+</![CDATA[>

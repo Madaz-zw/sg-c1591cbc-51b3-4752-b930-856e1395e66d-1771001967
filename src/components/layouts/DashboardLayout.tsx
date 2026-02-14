@@ -19,7 +19,8 @@ import {
   PackagePlus,
   CircuitBoard,
   Moon,
-  Sun
+  Sun,
+  Briefcase
 } from "lucide-react";
 import { useState } from "react";
 import { hasPermission } from "@/lib/mockAuth";
