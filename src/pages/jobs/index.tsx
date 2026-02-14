@@ -7,6 +7,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SEO } from "@/components/SEO";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   ClipboardList,
   Plus,
@@ -28,35 +54,12 @@ import { hasPermission } from "@/lib/mockAuth";
 import { jobService } from "@/services/jobService";
 import { storageService } from "@/services/storageService";
 import { materialService } from "@/services/materialService";
-import { Material } from "@/types";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+import { pdfService } from "@/services/pdfService";
+import type { Material } from "@/types";
 
 export default function JobsPage() {
   const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<JobCard[]>([]);
@@ -66,6 +69,7 @@ export default function JobsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobCard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   
   // Feature States
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -154,7 +158,46 @@ export default function JobsPage() {
     setFilteredJobs(filtered);
   }, [searchTerm, statusFilter, jobs]);
 
-  const handleCreateJob = async () => {
+  const handlePrintJob = async (job: JobCard) => {
+    // Use the new PDF service for better quality printing/downloading
+    try {
+      await pdfService.exportJobToPDF(job);
+      toast({
+        title: "PDF Generated",
+        description: "Job card PDF has been downloaded.",
+      });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportHistory = async () => {
+    try {
+      setExporting(true);
+      await pdfService.exportJobHistoryToPDF(filteredJobs);
+      toast({
+        title: "History Exported",
+        description: "Job history report has been downloaded.",
+      });
+    } catch (error) {
+      console.error("Error exporting history:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not export job history.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleCreateJob = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!newJob.jobName || !newJob.clientName) {
       alert("Please fill in all required fields");
       return;
@@ -322,89 +365,6 @@ export default function JobsPage() {
     }
   };
 
-  const handlePrintJob = (job: JobCard) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const materialsList = job.materialsUsed.map(m => 
-      `<li>${m.materialName}: ${m.quantity} (${m.process})</li>`
-    ).join('');
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Job Card - ${job.jobCardNumber}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
-            .title { font-size: 24px; font-weight: bold; }
-            .subtitle { font-size: 14px; color: #666; }
-            .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 4px; }
-            .section-title { font-weight: bold; margin-bottom: 10px; background: #f5f5f5; padding: 5px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-            .label { font-weight: bold; color: #555; }
-            .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-            .status-completed { background: #dcfce7; color: #166534; }
-            .status-progress { background: #dbeafe; color: #1e40af; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="title">JOSM ELECTRICAL</div>
-            <div class="subtitle">Manufacturing Job Card</div>
-            <h2>${job.jobCardNumber}</h2>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Job Details</div>
-            <div class="grid">
-              <div><span class="label">Job Name:</span> ${job.jobName}</div>
-              <div><span class="label">Client:</span> ${job.clientName}</div>
-              <div><span class="label">Board Type:</span> ${job.boardType}</div>
-              <div><span class="label">Priority:</span> ${job.priority || 'Normal'}</div>
-              <div><span class="label">Created By:</span> ${job.createdByName}</div>
-              <div><span class="label">Date:</span> ${new Date(job.createdAt).toLocaleDateString()}</div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Workflow Status</div>
-            <div class="grid">
-              <div>
-                <span class="label">Fabrication:</span> 
-                ${job.fabricationStatus} 
-                ${job.fabricationByName ? `(${job.fabricationByName})` : ''}
-              </div>
-              <div>
-                <span class="label">Assembling:</span> 
-                ${job.assemblingStatus}
-                ${job.assemblingByName ? `(${job.assemblingByName})` : ''}
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Materials Used</div>
-            <ul>${materialsList || '<li>No materials recorded</li>'}</ul>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Notes</div>
-            <p>${job.notes || 'No notes'}</p>
-          </div>
-          
-          <div style="margin-top: 40px; border-top: 1px solid #ccc; padding-top: 20px; display: flex; justify-content: space-between;">
-             <div>Supervisor Signature</div>
-             <div>Worker Signature</div>
-          </div>
-
-          <script>window.print();</script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -453,96 +413,31 @@ export default function JobsPage() {
       />
       <DashboardLayout>
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Job Cards</h1>
-              <p className="text-slate-600 dark:text-slate-400 mt-1">
-                Track production jobs and status
-              </p>
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold">Job Cards</h1>
+              <Badge variant="outline" className="text-lg py-1 px-3">
+                {filteredJobs.length}
+              </Badge>
             </div>
-            {canManage && (
-              <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700">
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Job Card
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New Job Card</DialogTitle>
-                    <DialogDescription>Start a new manufacturing job</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="jobName">Job Name *</Label>
-                      <Input
-                        id="jobName"
-                        placeholder="e.g., Panel Box 20x20"
-                        value={newJob.jobName}
-                        onChange={(e) => setNewJob({ ...newJob, jobName: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="clientName">Client Name *</Label>
-                      <Input
-                        id="clientName"
-                        placeholder="e.g., ABC Corp"
-                        value={newJob.clientName}
-                        onChange={(e) => setNewJob({ ...newJob, clientName: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Board Type</Label>
-                        <Select
-                          value={newJob.boardType}
-                          onValueChange={(v: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure") => setNewJob({ ...newJob, boardType: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Surface Mounted">Surface Mounted</SelectItem>
-                            <SelectItem value="Mini-Flush">Mini-Flush</SelectItem>
-                            <SelectItem value="Watertight">Watertight</SelectItem>
-                            <SelectItem value="Enclosure">Enclosure</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Priority</Label>
-                        <Select
-                          value={newJob.priority}
-                          onValueChange={(v: "Low" | "Normal" | "High") => setNewJob({ ...newJob, priority: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Low">Low</SelectItem>
-                            <SelectItem value="Normal">Normal</SelectItem>
-                            <SelectItem value="High">High</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Notes</Label>
-                      <Textarea
-                        id="notes"
-                        placeholder="Additional instructions..."
-                        value={newJob.notes}
-                        onChange={(e) => setNewJob({ ...newJob, notes: e.target.value })}
-                      />
-                    </div>
-                    <Button onClick={handleCreateJob} className="w-full">
-                      Create Job Card
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleExportHistory} 
+                disabled={exporting || filteredJobs.length === 0}
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Printer className="h-4 w-4 mr-2" />
+                )}
+                Export Report
+              </Button>
+              <Button onClick={() => setAddDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Job Card
+              </Button>
+            </div>
           </div>
 
           {/* Edit Job Dialog */}
