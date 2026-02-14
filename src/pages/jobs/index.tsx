@@ -14,7 +14,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,28 +25,17 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  ClipboardList,
   Plus,
   Search,
-  Filter,
-  MoreVertical,
-  CheckCircle,
-  PlayCircle,
-  Clock,
   Printer,
   Edit,
-  Package,
   Camera,
   Image as ImageIcon,
-  Loader2
+  Loader2,
+  CheckCircle,
+  Clock,
+  PlayCircle,
+  CheckCheck
 } from "lucide-react";
 import { JobCard } from "@/types";
 import { hasPermission } from "@/lib/mockAuth";
@@ -108,7 +96,7 @@ export default function JobsPage() {
       return;
     }
 
-    if (!hasPermission(user, "view_job_cards")) {
+    if (!hasPermission(user, "view_jobs")) {
       router.push("/dashboard");
       return;
     }
@@ -125,7 +113,11 @@ export default function JobsPage() {
       setFilteredJobs(data);
     } catch (error) {
       console.error("Failed to load jobs:", error);
-      alert("Failed to load jobs");
+      toast({
+        title: "Error",
+        description: "Failed to load jobs",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -159,7 +151,6 @@ export default function JobsPage() {
   }, [searchTerm, statusFilter, jobs]);
 
   const handlePrintJob = async (job: JobCard) => {
-    // Use the new PDF service for better quality printing/downloading
     try {
       await pdfService.exportJobToPDF(job);
       toast({
@@ -199,7 +190,11 @@ export default function JobsPage() {
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newJob.jobName || !newJob.clientName) {
-      alert("Please fill in all required fields");
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -233,9 +228,17 @@ export default function JobsPage() {
         notes: ""
       });
       setAddDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Job card created successfully",
+      });
     } catch (error) {
       console.error("Failed to create job:", error);
-      alert("Failed to create job");
+      toast({
+        title: "Error",
+        description: "Failed to create job",
+        variant: "destructive",
+      });
     }
   };
 
@@ -258,7 +261,11 @@ export default function JobsPage() {
     if (!selectedJob) return;
     
     if (!editJob.jobName || !editJob.clientName) {
-      alert("Please fill in all required fields");
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -277,9 +284,17 @@ export default function JobsPage() {
       await loadJobs();
       setEditDialogOpen(false);
       setSelectedJob(null);
+      toast({
+        title: "Success",
+        description: "Job updated successfully",
+      });
     } catch (error) {
       console.error("Failed to update job:", error);
-      alert("Failed to update job");
+      toast({
+        title: "Error",
+        description: "Failed to update job",
+        variant: "destructive",
+      });
     }
   };
 
@@ -298,13 +313,24 @@ export default function JobsPage() {
       );
       await loadJobs();
       
-      // Show success message
       if (type === "assembling" && status === "Completed") {
-        alert("✅ Job completed successfully! Board has been added to Finished Boards inventory.");
+        toast({
+          title: "Job Completed!",
+          description: "Board has been added to Finished Boards inventory.",
+        });
+      } else {
+        toast({
+          title: "Status Updated",
+          description: `${type === "fabrication" ? "Fabrication" : "Assembling"} status updated to ${status}`,
+        });
       }
     } catch (error) {
       console.error("Failed to update job status:", error);
-      alert("Failed to update job status");
+      toast({
+        title: "Error",
+        description: "Failed to update job status",
+        variant: "destructive",
+      });
     }
   };
 
@@ -332,9 +358,17 @@ export default function JobsPage() {
 
       await loadJobs();
       setMaterialDialogOpen(false);
+      toast({
+        title: "Material Added",
+        description: `${material.name} (x${materialQuantity}) added to ${currentStageForMaterial}`,
+      });
     } catch (error) {
       console.error("Failed to add material:", error);
-      alert("Failed to add material");
+      toast({
+        title: "Error",
+        description: "Failed to add material",
+        variant: "destructive",
+      });
     }
   };
 
@@ -353,13 +387,20 @@ export default function JobsPage() {
       await jobService.addPhotosToJob(selectedJob.id, urls);
       await loadJobs();
       
-      // Update selected job to show new photos immediately if dialog is open
       const updatedJob = await jobService.getJobById(selectedJob.id);
       if (updatedJob) setSelectedJob(updatedJob);
       
+      toast({
+        title: "Photos Uploaded",
+        description: `${files.length} photo(s) uploaded successfully`,
+      });
     } catch (error) {
       console.error("Failed to upload photos:", error);
-      alert("Failed to upload photos");
+      toast({
+        title: "Error",
+        description: "Failed to upload photos",
+        variant: "destructive",
+      });
     } finally {
       setUploading(false);
     }
@@ -391,7 +432,7 @@ export default function JobsPage() {
     }
   };
 
-  const canManage = hasPermission(user, "manage_job_cards");
+  const canManage = hasPermission(user, "manage_jobs");
   const canUpdateFabrication = hasPermission(user, "update_fabrication");
   const canUpdateAssembling = hasPermission(user, "update_assembling");
 
@@ -399,7 +440,7 @@ export default function JobsPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-96">
-          <div className="text-slate-600 dark:text-slate-400">Loading jobs...</div>
+          <Loader2 className="h-8 w-8 animate-spin text-slate-600 dark:text-slate-400" />
         </div>
       </DashboardLayout>
     );
@@ -433,12 +474,115 @@ export default function JobsPage() {
                 )}
                 Export Report
               </Button>
-              <Button onClick={() => setAddDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Job Card
-              </Button>
+              {canManage && (
+                <Button onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Job Card
+                </Button>
+              )}
             </div>
           </div>
+
+          {/* Add Job Dialog */}
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New Job Card</DialogTitle>
+                <DialogDescription>
+                  Fill in the details for the new job
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateJob} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="jobName">Job Name *</Label>
+                    <Input
+                      id="jobName"
+                      placeholder="e.g., Panel Box 20x20"
+                      value={newJob.jobName}
+                      onChange={(e) => setNewJob({ ...newJob, jobName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="clientName">Client Name *</Label>
+                    <Input
+                      id="clientName"
+                      placeholder="e.g., ABC Corp"
+                      value={newJob.clientName}
+                      onChange={(e) => setNewJob({ ...newJob, clientName: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Board Type</Label>
+                    <Select
+                      value={newJob.boardType}
+                      onValueChange={(v: "Surface Mounted" | "Mini-Flush" | "Watertight" | "Enclosure") => 
+                        setNewJob({ ...newJob, boardType: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Surface Mounted">Surface Mounted</SelectItem>
+                        <SelectItem value="Mini-Flush">Mini-Flush</SelectItem>
+                        <SelectItem value="Watertight">Watertight</SelectItem>
+                        <SelectItem value="Enclosure">Enclosure</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Select
+                      value={newJob.priority}
+                      onValueChange={(v: "Low" | "Normal" | "High") => 
+                        setNewJob({ ...newJob, priority: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Normal">Normal</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Additional instructions..."
+                    rows={3}
+                    value={newJob.notes}
+                    onChange={(e) => setNewJob({ ...newJob, notes: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button type="submit" className="flex-1">
+                    Create Job Card
+                  </Button>
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    onClick={() => setAddDialogOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
 
           {/* Edit Job Dialog */}
           <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -569,6 +713,7 @@ export default function JobsPage() {
             </DialogContent>
           </Dialog>
 
+          {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
@@ -596,6 +741,7 @@ export default function JobsPage() {
             </Card>
           </div>
 
+          {/* Filters */}
           <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -624,6 +770,7 @@ export default function JobsPage() {
             </CardContent>
           </Card>
 
+          {/* Job Cards List */}
           <div className="grid grid-cols-1 gap-4">
             {filteredJobs.length === 0 ? (
               <Card>
@@ -702,40 +849,35 @@ export default function JobsPage() {
 
                     {/* Workflow Stages Visualization */}
                     <div className="flex items-center justify-between mb-6 px-2">
-                       {/* Stage 1: Fabrication */}
-                       <div className="flex flex-col items-center">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
-                            job.fabricationStatus === "Completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
-                            job.fabricationStatus === "In Progress" ? "bg-blue-100 text-blue-700 border-2 border-blue-500 animate-pulse" :
-                            "bg-slate-100 text-slate-400 border-2 border-slate-300"
-                          }`}>1</div>
-                          <span className={`text-xs font-medium ${job.fabricationStatus === "Pending" ? "text-slate-400" : "text-slate-700"}`}>Fabrication</span>
-                       </div>
-                       
-                       {/* Connector */}
-                       <div className={`flex-1 h-0.5 mx-2 ${job.fabricationStatus === "Completed" ? "bg-green-500" : "bg-slate-200"}`} />
+                      <div className="flex flex-col items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
+                          job.fabricationStatus === "Completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
+                          job.fabricationStatus === "In Progress" ? "bg-blue-100 text-blue-700 border-2 border-blue-500 animate-pulse" :
+                          "bg-slate-100 text-slate-400 border-2 border-slate-300"
+                        }`}>1</div>
+                        <span className={`text-xs font-medium ${job.fabricationStatus === "Pending" ? "text-slate-400" : "text-slate-700"}`}>Fabrication</span>
+                      </div>
+                      
+                      <div className={`flex-1 h-0.5 mx-2 ${job.fabricationStatus === "Completed" ? "bg-green-500" : "bg-slate-200"}`} />
 
-                       {/* Stage 2: Assembling */}
-                       <div className="flex flex-col items-center">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
-                            job.assemblingStatus === "Completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
-                            job.assemblingStatus === "In Progress" ? "bg-purple-100 text-purple-700 border-2 border-purple-500 animate-pulse" :
-                            "bg-slate-100 text-slate-400 border-2 border-slate-300"
-                          }`}>2</div>
-                          <span className={`text-xs font-medium ${job.assemblingStatus === "Pending" ? "text-slate-400" : "text-slate-700"}`}>Assembling</span>
-                       </div>
+                      <div className="flex flex-col items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
+                          job.assemblingStatus === "Completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
+                          job.assemblingStatus === "In Progress" ? "bg-purple-100 text-purple-700 border-2 border-purple-500 animate-pulse" :
+                          "bg-slate-100 text-slate-400 border-2 border-slate-300"
+                        }`}>2</div>
+                        <span className={`text-xs font-medium ${job.assemblingStatus === "Pending" ? "text-slate-400" : "text-slate-700"}`}>Assembling</span>
+                      </div>
 
-                       {/* Connector */}
-                       <div className={`flex-1 h-0.5 mx-2 ${job.status === "completed" ? "bg-green-500" : "bg-slate-200"}`} />
+                      <div className={`flex-1 h-0.5 mx-2 ${job.status === "completed" ? "bg-green-500" : "bg-slate-200"}`} />
 
-                       {/* Stage 3: Finished */}
-                       <div className="flex flex-col items-center">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
-                            job.status === "completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
-                            "bg-slate-100 text-slate-400 border-2 border-slate-300"
-                          }`}>3</div>
-                          <span className={`text-xs font-medium ${job.status === "completed" ? "text-slate-700" : "text-slate-400"}`}>Finished</span>
-                       </div>
+                      <div className="flex flex-col items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
+                          job.status === "completed" ? "bg-green-100 text-green-700 border-2 border-green-500" :
+                          "bg-slate-100 text-slate-400 border-2 border-slate-300"
+                        }`}>3</div>
+                        <span className={`text-xs font-medium ${job.status === "completed" ? "text-slate-700" : "text-slate-400"}`}>Finished</span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -748,7 +890,6 @@ export default function JobsPage() {
                           {getProcessStatusBadge(job.fabricationStatus || "Pending")}
                         </div>
                         
-                        {/* Materials Used List (Fabrication) */}
                         {job.materialsUsed.filter(m => m.process === "fabrication").length > 0 && (
                           <div className="text-xs text-slate-500 space-y-1 mt-2 border-t border-slate-200 pt-2">
                             <span className="font-semibold">Materials:</span>
@@ -761,7 +902,6 @@ export default function JobsPage() {
                           </div>
                         )}
 
-                        {/* Add Material Button */}
                         {job.fabricationStatus === "In Progress" && (
                           <Button 
                             variant="ghost" 
@@ -773,7 +913,7 @@ export default function JobsPage() {
                           </Button>
                         )}
 
-                        {job.fabricationBy && (
+                        {job.fabricationByName && (
                           <div className="text-xs text-slate-500 pt-2 border-t border-slate-200 mt-2">
                             👤 {job.fabricationByName}
                           </div>
@@ -793,7 +933,6 @@ export default function JobsPage() {
                           {getProcessStatusBadge(job.assemblingStatus || "Pending")}
                         </div>
 
-                        {/* Materials Used List (Assembling) */}
                         {job.materialsUsed.filter(m => m.process === "assembling").length > 0 && (
                           <div className="text-xs text-slate-500 space-y-1 mt-2 border-t border-slate-200 pt-2">
                             <span className="font-semibold">Materials:</span>
@@ -806,7 +945,6 @@ export default function JobsPage() {
                           </div>
                         )}
 
-                        {/* Add Material Button */}
                         {job.assemblingStatus === "In Progress" && (
                           <Button 
                             variant="ghost" 
@@ -823,7 +961,7 @@ export default function JobsPage() {
                             <Clock className="w-3 h-3" /> Waiting for fabrication to complete...
                           </div>
                         )}
-                        {job.assemblingBy && (
+                        {job.assemblingByName && (
                           <div className="text-xs text-slate-500 pt-2 border-t border-slate-200 mt-2">
                             👤 {job.assemblingByName}
                           </div>
@@ -831,65 +969,54 @@ export default function JobsPage() {
                       </div>
                     </div>
 
-                    {/* Quick Action - Next Stage Button */}
-                    {job.status !== "completed" && (canUpdateFabrication || canUpdateAssembling) && (
-                      <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                              {job.fabricationStatus === "Pending" && "Ready to start fabrication"}
-                              {job.fabricationStatus === "In Progress" && "Fabrication in progress"}
-                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && "Ready to start assembling"}
-                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && "Assembling in progress"}
-                            </p>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                              {job.fabricationStatus === "Pending" && "Click to begin the fabrication process"}
-                              {job.fabricationStatus === "In Progress" && "Mark fabrication as complete when done"}
-                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && "Click to begin the assembling process"}
-                              {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && "Mark assembling as complete when done"}
-                            </p>
-                          </div>
-                          {job.fabricationStatus === "Pending" && canUpdateFabrication && (
-                            <Button
-                              size="sm"
-                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-                              onClick={() => handleUpdateStatus(job.id, "fabrication", "In Progress")}
-                            >
-                              Start Fabrication →
-                            </Button>
-                          )}
-                          {job.fabricationStatus === "In Progress" && canUpdateFabrication && (
-                            <Button
-                              size="sm"
-                              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
-                              onClick={() => handleUpdateStatus(job.id, "fabrication", "Completed")}
-                            >
-                              Complete Fabrication ✓
-                            </Button>
-                          )}
-                          {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && canUpdateAssembling && (
-                            <Button
-                              size="sm"
-                              className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
-                              onClick={() => handleUpdateStatus(job.id, "assembling", "In Progress")}
-                            >
-                              Start Assembling →
-                            </Button>
-                          )}
-                          {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && canUpdateAssembling && (
-                            <Button
-                              size="sm"
-                              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
-                              onClick={() => handleUpdateStatus(job.id, "assembling", "Completed")}
-                            >
-                              Complete Assembling ✓
-                            </Button>
-                          )}
-                        </div>
+                    {/* ACTION BUTTONS - HIGHLY VISIBLE */}
+                    {job.status !== "completed" && (
+                      <div className="mt-6 space-y-3">
+                        {/* Fabrication Actions */}
+                        {job.fabricationStatus === "Pending" && (
+                          <Button
+                            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-6 text-base"
+                            onClick={() => handleUpdateStatus(job.id, "fabrication", "In Progress")}
+                          >
+                            <PlayCircle className="w-5 h-5 mr-2" />
+                            Start Fabrication →
+                          </Button>
+                        )}
+
+                        {job.fabricationStatus === "In Progress" && (
+                          <Button
+                            className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-6 text-base"
+                            onClick={() => handleUpdateStatus(job.id, "fabrication", "Completed")}
+                          >
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            Complete Fabrication ✓
+                          </Button>
+                        )}
+
+                        {/* Assembling Actions */}
+                        {job.fabricationStatus === "Completed" && job.assemblingStatus === "Pending" && (
+                          <Button
+                            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold py-6 text-base"
+                            onClick={() => handleUpdateStatus(job.id, "assembling", "In Progress")}
+                          >
+                            <PlayCircle className="w-5 h-5 mr-2" />
+                            Start Assembling →
+                          </Button>
+                        )}
+
+                        {job.fabricationStatus === "Completed" && job.assemblingStatus === "In Progress" && (
+                          <Button
+                            className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-6 text-base"
+                            onClick={() => handleUpdateStatus(job.id, "assembling", "Completed")}
+                          >
+                            <CheckCheck className="w-5 h-5 mr-2" />
+                            Complete Assembling ✓
+                          </Button>
+                        )}
                       </div>
                     )}
 
-                    {/* Completion Message and Photos */}
+                    {/* Completion Status */}
                     {job.status === "completed" && (
                       <div className="mt-4 space-y-3">
                         <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex justify-between items-center">
@@ -950,7 +1077,7 @@ export default function JobsPage() {
                     type="number" 
                     min="1" 
                     value={materialQuantity} 
-                    onChange={(e) => setMaterialQuantity(parseInt(e.target.value) || 0)} 
+                    onChange={(e) => setMaterialQuantity(parseInt(e.target.value) || 1)} 
                   />
                 </div>
                 <Button onClick={handleAddMaterial} disabled={!selectedMaterialId} className="w-full">
@@ -998,12 +1125,11 @@ export default function JobsPage() {
                   </div>
                 </div>
                 <div className="flex justify-end">
-                   <Button variant="outline" onClick={() => setPhotoUploadOpen(false)}>Close</Button>
+                  <Button variant="outline" onClick={() => setPhotoUploadOpen(false)}>Close</Button>
                 </div>
               </div>
             </DialogContent>
           </Dialog>
-
         </div>
       </DashboardLayout>
     </>
