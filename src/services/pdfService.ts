@@ -2,6 +2,66 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { JobCard } from "@/types";
 
+// Company logo as base64 (SVG converted to data URL)
+const COMPANY_LOGO_DATA = `data:image/svg+xml;base64,${btoa(`<svg width="200" height="80" viewBox="0 0 200 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="80" rx="4" fill="#1e40af"/>
+  <path d="M50 20L35 45H45L40 60L55 35H45L50 20Z" fill="#fbbf24" stroke="#fff" stroke-width="2"/>
+  <text x="75" y="35" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#ffffff">JOSM ELECTRICAL</text>
+  <text x="75" y="55" font-family="Arial, sans-serif" font-size="12" fill="#93c5fd">Manufacturing Excellence</text>
+  <line x1="70" y1="42" x2="190" y2="42" stroke="#3b82f6" stroke-width="1"/>
+  <circle cx="72" cy="42" r="2" fill="#60a5fa"/>
+  <circle cx="188" cy="42" r="2" fill="#60a5fa"/>
+</svg>`)}`;
+
+/**
+ * Add company logo and header to PDF
+ */
+const addLogoAndHeader = (
+  doc: jsPDF,
+  title: string,
+  subtitle?: string
+): number => {
+  try {
+    // Add logo (top-left)
+    doc.addImage(COMPANY_LOGO_DATA, "SVG", 15, 10, 50, 20);
+  } catch (error) {
+    console.warn("Failed to add logo image:", error);
+    // Fallback: just add text header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("JOSM ELECTRICAL", 15, 20);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("Manufacturing Excellence", 15, 27);
+  }
+
+  // Add title (top-right)
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 64, 175); // Blue color
+  const titleWidth = doc.getTextWidth(title);
+  doc.text(title, 210 - titleWidth - 15, 20);
+
+  // Add subtitle if provided
+  if (subtitle) {
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    const subtitleWidth = doc.getTextWidth(subtitle);
+    doc.text(subtitle, 210 - subtitleWidth - 15, 27);
+  }
+
+  // Add horizontal line separator
+  doc.setDrawColor(30, 64, 175);
+  doc.setLineWidth(0.5);
+  doc.line(15, 35, 195, 35);
+
+  // Reset text color for body content
+  doc.setTextColor(0, 0, 0);
+
+  return 40; // Return Y position after header
+};
+
 interface PDFExportOptions {
   includePhotos?: boolean;
   includeSignatureLines?: boolean;
@@ -214,30 +274,28 @@ export const pdfService = {
   },
 
   // Export multiple jobs to PDF
-  async exportJobHistoryToPDF(jobs: JobCard[], title: string = "Job History Report") {
+  async exportJobHistoryToPDF(jobs: JobCard[], filterInfo?: string) {
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-    let yPosition = 20;
 
-    // Report Header
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text("JOSM ELECTRICAL PVT LTD", pageWidth / 2, yPosition, { align: "center" });
-    
-    yPosition += 8;
-    doc.setFontSize(14);
-    doc.text(title, pageWidth / 2, yPosition, { align: "center" });
-    
-    yPosition += 6;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPosition, {
-      align: "center",
-    });
-    
-    yPosition += 10;
+    // Add logo and header
+    let yPosition = addLogoAndHeader(
+      doc,
+      "Job History Report",
+      `Generated: ${new Date().toLocaleString()}`
+    );
+
+    yPosition += 5;
+
+    // Filter information (if provided)
+    if (filterInfo) {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "italic");
+      doc.text(filterInfo, 15, yPosition);
+      yPosition += 8;
+    }
+
     doc.setLineWidth(0.5);
-    doc.line(15, yPosition, pageWidth - 15, yPosition);
+    doc.line(15, yPosition, doc.internal.pageSize.width - 15, yPosition);
     yPosition += 10;
 
     // Summary Statistics
