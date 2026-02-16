@@ -14,7 +14,9 @@ import {
   LogOut,
   LogIn,
   AlertTriangle,
-  Filter
+  Filter,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { Tool } from "@/types";
 import { hasPermission } from "@/lib/mockAuth";
@@ -57,6 +59,8 @@ export default function ToolsPage() {
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [damageDialogOpen, setDamageDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [checkoutName, setCheckoutName] = useState("");
   const [returnNotes, setReturnNotes] = useState("");
@@ -64,6 +68,12 @@ export default function ToolsPage() {
   const [loading, setLoading] = useState(true);
 
   const [newTool, setNewTool] = useState({
+    name: "",
+    code: "",
+    category: ""
+  });
+
+  const [editTool, setEditTool] = useState({
     name: "",
     code: "",
     category: ""
@@ -145,6 +155,42 @@ export default function ToolsPage() {
     } catch (error) {
       console.error("Failed to add tool:", error);
       alert(`Failed to add tool: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
+  const handleEditTool = async () => {
+    if (!selectedTool || !editTool.name) {
+      alert("Please enter tool name");
+      return;
+    }
+
+    try {
+      await toolService.updateTool(selectedTool.id, {
+        name: editTool.name,
+        code: editTool.code || null,
+        category: editTool.category || null
+      });
+
+      await loadTools();
+      setEditDialogOpen(false);
+      setSelectedTool(null);
+    } catch (error) {
+      console.error("Failed to update tool:", error);
+      alert("Failed to update tool");
+    }
+  };
+
+  const handleDeleteTool = async () => {
+    if (!selectedTool) return;
+
+    try {
+      await toolService.deleteTool(selectedTool.id);
+      await loadTools();
+      setDeleteDialogOpen(false);
+      setSelectedTool(null);
+    } catch (error) {
+      console.error("Failed to delete tool:", error);
+      alert("Failed to delete tool");
     }
   };
 
@@ -467,6 +513,33 @@ export default function ToolsPage() {
                                     </Button>
                                   </>
                                 )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedTool(tool);
+                                    setEditTool({
+                                      name: tool.name,
+                                      code: tool.code || "",
+                                      category: tool.category || ""
+                                    });
+                                    setEditDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="h-3 w-3 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setSelectedTool(tool);
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Delete
+                                </Button>
                               </div>
                             </TableCell>
                           )}
@@ -554,6 +627,97 @@ export default function ToolsPage() {
                 <Button onClick={handleMarkDamaged} variant="destructive" className="w-full">
                   Mark as Damaged
                 </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Tool</DialogTitle>
+                <DialogDescription>Update tool information</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editName">Tool Name *</Label>
+                  <Input
+                    id="editName"
+                    placeholder="e.g., Cordless drill emtop"
+                    value={editTool.name}
+                    onChange={(e) => setEditTool({ ...editTool, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editCode">Code/Number</Label>
+                  <Input
+                    id="editCode"
+                    placeholder="e.g., 1, 2, M1"
+                    value={editTool.code}
+                    onChange={(e) => setEditTool({ ...editTool, code: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editCategory">Category</Label>
+                  <Input
+                    id="editCategory"
+                    placeholder="e.g., Drills, Spanners, Hammers"
+                    value={editTool.category}
+                    onChange={(e) => setEditTool({ ...editTool, category: e.target.value })}
+                  />
+                </div>
+                <Button onClick={handleEditTool} className="w-full">
+                  Update Tool
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Tool</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this tool? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-900">
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    {selectedTool?.name}
+                  </p>
+                  {selectedTool?.code && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Code: {selectedTool.code}
+                    </p>
+                  )}
+                  {selectedTool?.category && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Category: {selectedTool.category}
+                    </p>
+                  )}
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Status: {selectedTool?.status}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setDeleteDialogOpen(false);
+                      setSelectedTool(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={handleDeleteTool}
+                  >
+                    Delete Tool
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
