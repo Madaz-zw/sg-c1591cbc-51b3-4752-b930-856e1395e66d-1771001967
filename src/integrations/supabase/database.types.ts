@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-object-type */
+ 
 export type Json =
   | string
   | number
@@ -543,13 +543,13 @@ export type Database = {
       }
       tools: {
         Row: {
-          category: string
+          category: string | null
           checked_out_at: string | null
           checked_out_by: string | null
           checked_out_by_name: string | null
           checked_out_date: string | null
           checked_out_to: string | null
-          code: string
+          code: string | null
           created_at: string | null
           id: string
           is_damaged: boolean | null
@@ -558,13 +558,13 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          category: string
+          category?: string | null
           checked_out_at?: string | null
           checked_out_by?: string | null
           checked_out_by_name?: string | null
           checked_out_date?: string | null
           checked_out_to?: string | null
-          code: string
+          code?: string | null
           created_at?: string | null
           id?: string
           is_damaged?: boolean | null
@@ -573,13 +573,13 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          category?: string
+          category?: string | null
           checked_out_at?: string | null
           checked_out_by?: string | null
           checked_out_by_name?: string | null
           checked_out_date?: string | null
           checked_out_to?: string | null
-          code?: string
+          code?: string | null
           created_at?: string | null
           id?: string
           is_damaged?: boolean | null

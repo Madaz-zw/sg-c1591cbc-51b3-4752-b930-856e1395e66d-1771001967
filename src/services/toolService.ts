@@ -36,7 +36,7 @@ export const toolService = {
     const newTool: ToolInsert = {
       name: tool.name,
       code: tool.code || null,
-      category: tool.category,
+      category: tool.category || null,
       status: tool.status,
       checked_out_to: tool.checkedOutTo || null,
       checked_out_by: tool.checkedOutBy || null,

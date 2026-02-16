@@ -125,8 +125,8 @@ export default function ToolsPage() {
   const damagedTools = tools.filter(t => t.isDamaged);
 
   const handleAddTool = async () => {
-    if (!newTool.name || !newTool.category) {
-      alert("Please fill in all required fields");
+    if (!newTool.name) {
+      alert("Please enter tool name");
       return;
     }
 
@@ -134,7 +134,7 @@ export default function ToolsPage() {
       await toolService.createTool({
         name: newTool.name,
         code: newTool.code || undefined,
-        category: newTool.category,
+        category: newTool.category || undefined,
         status: "available",
         isDamaged: false
       });
@@ -144,7 +144,7 @@ export default function ToolsPage() {
       setAddDialogOpen(false);
     } catch (error) {
       console.error("Failed to add tool:", error);
-      alert("Failed to add tool");
+      alert(`Failed to add tool: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 
@@ -265,7 +265,7 @@ export default function ToolsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="code">Code/Number</Label>
+                      <Label htmlFor="code">Code/Number (Optional)</Label>
                       <Input
                         id="code"
                         placeholder="e.g., 1, 2, M1"
@@ -274,7 +274,7 @@ export default function ToolsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="category">Category *</Label>
+                      <Label htmlFor="category">Category (Optional)</Label>
                       <Input
                         id="category"
                         placeholder="e.g., Drills, Spanners, Hammers"
