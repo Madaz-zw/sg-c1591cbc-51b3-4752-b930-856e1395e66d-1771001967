@@ -74,6 +74,16 @@ export const toolService = {
     return this.mapToTool(data);
   },
 
+  // Delete tool
+  async deleteTool(id: string): Promise<void> {
+    const { error } = await supabase
+      .from("tools")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+  },
+
   // Internal helper for checkout update
   async _updateToolCheckoutStatus(id: string, workerName: string, userId: string): Promise<Tool> {
     return this.updateTool(id, {

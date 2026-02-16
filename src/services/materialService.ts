@@ -68,6 +68,16 @@ export const materialService = {
     return this.mapToMaterial(data);
   },
 
+  // Delete material
+  async deleteMaterial(id: string): Promise<void> {
+    const { error } = await supabase
+      .from("materials")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+  },
+
   // Update quantity
   async updateQuantity(id: string, quantity: number): Promise<Material> {
     // For specific quantity updates, we might need a more robust approach in production

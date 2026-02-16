@@ -16,7 +16,9 @@ import {
   TrendingUp,
   TrendingDown,
   Filter,
-  Download
+  Download,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { Material } from "@/types";
 import { hasPermission } from "@/lib/mockAuth";
@@ -55,6 +57,8 @@ export default function MaterialsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [receiveQuantity, setReceiveQuantity] = useState("");
   const [loading, setLoading] = useState(true);
@@ -66,6 +70,15 @@ export default function MaterialsPage() {
     quantity: "",
     unit: "pcs",
     minThreshold: "10"
+  });
+
+  const [editMaterial, setEditMaterial] = useState({
+    name: "",
+    category: "",
+    variant: "",
+    quantity: "",
+    unit: "pcs",
+    minThreshold: ""
   });
 
   useEffect(() => {
@@ -140,6 +153,45 @@ export default function MaterialsPage() {
     } catch (error) {
       console.error("Failed to add material:", error);
       alert("Failed to add material");
+    }
+  };
+
+  const handleEditMaterial = async () => {
+    if (!selectedMaterial || !editMaterial.name || !editMaterial.category || !editMaterial.quantity) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      await materialService.updateMaterial(selectedMaterial.id, {
+        name: editMaterial.name,
+        category: editMaterial.category,
+        variant: editMaterial.variant || null,
+        quantity: parseInt(editMaterial.quantity),
+        unit: editMaterial.unit,
+        min_threshold: parseInt(editMaterial.minThreshold)
+      });
+
+      await loadMaterials();
+      setEditDialogOpen(false);
+      setSelectedMaterial(null);
+    } catch (error) {
+      console.error("Failed to update material:", error);
+      alert("Failed to update material");
+    }
+  };
+
+  const handleDeleteMaterial = async () => {
+    if (!selectedMaterial) return;
+
+    try {
+      await materialService.deleteMaterial(selectedMaterial.id);
+      await loadMaterials();
+      setDeleteDialogOpen(false);
+      setSelectedMaterial(null);
+    } catch (error) {
+      console.error("Failed to delete material:", error);
+      alert("Failed to delete material");
     }
   };
 
@@ -408,17 +460,49 @@ export default function MaterialsPage() {
                             </TableCell>
                             {canManage && (
                               <TableCell className="text-right">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setSelectedMaterial(material);
-                                    setReceiveDialogOpen(true);
-                                  }}
-                                >
-                                  <TrendingUp className="h-3 w-3 mr-1" />
-                                  Receive
-                                </Button>
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSelectedMaterial(material);
+                                      setReceiveDialogOpen(true);
+                                    }}
+                                  >
+                                    <TrendingUp className="h-3 w-3 mr-1" />
+                                    Receive
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSelectedMaterial(material);
+                                      setEditMaterial({
+                                        name: material.name,
+                                        category: material.category,
+                                        variant: material.variant || "",
+                                        quantity: material.quantity.toString(),
+                                        unit: material.unit,
+                                        minThreshold: material.minThreshold.toString()
+                                      });
+                                      setEditDialogOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3 mr-1" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                      setSelectedMaterial(material);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-1" />
+                                    Delete
+                                  </Button>
+                                </div>
                               </TableCell>
                             )}
                           </TableRow>
@@ -459,6 +543,131 @@ export default function MaterialsPage() {
                 <Button onClick={handleReceiveMaterial} className="w-full">
                   Confirm Receipt
                 </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Material</DialogTitle>
+                <DialogDescription>Update material information</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editName">Material Name *</Label>
+                  <Input
+                    id="editName"
+                    placeholder="e.g., MCB Breaker"
+                    value={editMaterial.name}
+                    onChange={(e) => setEditMaterial({ ...editMaterial, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editCategory">Category *</Label>
+                  <Input
+                    id="editCategory"
+                    placeholder="e.g., CHINT MCB"
+                    value={editMaterial.category}
+                    onChange={(e) => setEditMaterial({ ...editMaterial, category: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editVariant">Variant</Label>
+                  <Input
+                    id="editVariant"
+                    placeholder="e.g., 6A s.p"
+                    value={editMaterial.variant}
+                    onChange={(e) => setEditMaterial({ ...editMaterial, variant: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editQuantity">Quantity *</Label>
+                    <Input
+                      id="editQuantity"
+                      type="number"
+                      placeholder="0"
+                      value={editMaterial.quantity}
+                      onChange={(e) => setEditMaterial({ ...editMaterial, quantity: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editUnit">Unit</Label>
+                    <Select value={editMaterial.unit} onValueChange={(value) => setEditMaterial({ ...editMaterial, unit: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pcs">Pieces</SelectItem>
+                        <SelectItem value="kg">Kilograms</SelectItem>
+                        <SelectItem value="ltr">Liters</SelectItem>
+                        <SelectItem value="mtr">Meters</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editThreshold">Minimum Threshold *</Label>
+                  <Input
+                    id="editThreshold"
+                    type="number"
+                    placeholder="10"
+                    value={editMaterial.minThreshold}
+                    onChange={(e) => setEditMaterial({ ...editMaterial, minThreshold: e.target.value })}
+                  />
+                </div>
+                <Button onClick={handleEditMaterial} className="w-full">
+                  Update Material
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Material</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this material? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-900">
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    {selectedMaterial?.name}
+                  </p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Category: {selectedMaterial?.category}
+                  </p>
+                  {selectedMaterial?.variant && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Variant: {selectedMaterial.variant}
+                    </p>
+                  )}
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Current Stock: {selectedMaterial?.quantity} {selectedMaterial?.unit}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setDeleteDialogOpen(false);
+                      setSelectedMaterial(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={handleDeleteMaterial}
+                  >
+                    Delete Material
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
