@@ -44,13 +44,20 @@ export const toolService = {
       is_damaged: tool.isDamaged || false
     };
 
+    console.log("Creating tool with data:", newTool);
+
     const { data, error } = await supabase
       .from("tools")
       .insert(newTool)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Tool creation error:", error);
+      throw error;
+    }
+    
+    console.log("Tool created successfully:", data);
     return this.mapToTool(data);
   },
 
